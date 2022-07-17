@@ -1,0 +1,24 @@
+<RCC>
+    <qresource prefix="/">
+        <file>main.qml</file>
+        <file>CPS_UI.files/CPS_SplashScreen.qml</file>
+        <file>CPS_UI.files/ENGINEERING.qml</file>
+        <file>CPS_UI.files/HOME.qml</file>
+        <file>CPS_UI.files/STATUS.qml</file>
+        <file>CPS_UI.files/Tabs.qml</file>
+        <file>CPS_UI.files/description.ini</file>
+        <file>CPS_UI.files/RoundMouseArea.qml</file>
+        <file>CPS_UI.files/Status_window.qml</file>
+        <file>CPS_UI.files/Status_Window_Creation.js</file>
+        <file>CPS_UI.files/JOYSTICK.qml</file>
+        <file>CPS_UI.files/Gyro_Status_Window.qml</file>
+        <file>CPS_UI.files/Parameter_Spin_Box.qml</file>
+        <file>CPS_UI.files/WHEELS.qml</file>
+        <file>CPS_UI.files/Potentiometer_Status_Window.qml</file>
+        <file>../../../CPS_UI/CPS_UI/CPS_UI.files/Joystick_Button_Connect.js</file>
+        <file>CPS_UI.files/Joystick_Button_Connect.js</file>
+        <file>../../../CPS_UI/CPS_UI/CPS_UI.files/Joystick_Status_Window.qml</file>
+        <file>CPS_UI.files/Joystick_Status_Window.qml</file>
+        <file>CPS_UI.files/MOTER.qml</file>
+    </qresource>
+</RCC>

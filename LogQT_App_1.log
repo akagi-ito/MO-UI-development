@@ -1,0 +1,6 @@
+linuxdeployqt 5 (commit 37631e5), build 631 built on 2019-01-25 22:47:58 UTC
+Desktop file as first argument: "/home/cps/cameracontrol/QT_UI/build-CPS_UI-Desktop_Qt_5_12_4_GCC_64bit-Release/usr/share/applications/CPS_UI.desktop"
+desktopExecEntry: "CPS_UI"
+desktopIconEntry: "CPS_LOGO"
+ERROR: Could not determine the path to the executable based on the desktop file
+
