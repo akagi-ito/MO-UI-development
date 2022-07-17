@@ -1,0 +1,1473 @@
+
+# Load PDO configuration function
+loadusr -W lcec_conf ./epdo_xmc.xml  					  # Load SDO/PDOs across network as per xml file
+unload lcec_conf               													# Unload once it has run as it si not required once PDOs are setup
+loadrt lcec															# Start PDO component	
+loadrt jacobianNewTRv3 file=../dep/ros_cps/cps_description/openrave/head_chassisRot32bitZ_MK_chTiltRoll.env.xml		# Load component that does the IK math.
+loadrt wheel count=3       # Load three wheel instances
+
+# Type Conversions
+loadrt conv_float_s32 count=24   	# Count 0 used for Scale JS1 Count 1 used for Scale JS2, Count 2 used for scale JS3, also used to convert Velocity offsets from floats to s32
+loadrt conv_s32_float count=11		# Used to convert input actual velocities to floats for velocity offset function
+loadrt conv_u32_bit count=2         # Used to convert USBcomm lcec.0.5.Torque_Target_Axis_B_OUT to bit for anding
+loadrt conv_bit_u32 count=1         # Used to convert combined USBcomm status bact to u32 for controlFSM
+loadrt deadzone count=3 		# used for joystick 123
+loadrt lowpass count=26			# used for joystick and wheels damping function and signal filtering
+loadrt toggle count=16			# Used to latch momentary states
+loadrt pid count=6			# Load PID loops for stabilization (0,1,2)  and horizon (3,4,5)
+loadrt mult2 count=6			# Use to swap signal directons stabs and tilt motor
+loadrt and2 count=2			# This 2 input and function is used to combine dual switch functions and2.1 used to and together USB Comms from both Bodar modules
+loadrt ddt count=6			# Try this to manage the backlash
+loadrt div2 count=1                     # Divide Function
+loadrt or2  count=10                 # Or gate used to OR switches with UI signals
+
+# Horion Control
+loadrt horizon count=3			# this component generates the auto horizon signal from the camera gyro.
+# Math Component
+loadrt scale count=15                    								# Scale Function (3) For hand wheel Scaling and Joystick Scaling, (3) used to convert the Angular Velocity to motor velocity units (.1cnts/sec)
+# Tuning Component
+loadrt siggen        											# Signal generator for tuning motion stimulus
+### Multiplex Section
+loadrt mux2 count=14											# Load MUX function to switch command inputs, See addf section for usages
+loadrt ReverseMUX2 count=6
+# Load USB Components
+loadusr -W bodnar_USB_generic0 -sB48400 -t25    				# Serial # 48400 25ms update rate  -W is Wait till loaded 
+loadusr -W bodnar_USB_generic1 -sB48085 -t25    				# Serial # 48085  25 ms update rate -W is Wait till loaded 
+loadusr -W wheelsFTDI								# Wheels FTDI usb interface
+# Load SDO components
+loadusr -W sdo_download count=6						# Set up SDOs for Latched Status write function to clear errors
+#loadusr -W /home/cps/machinekit/bin/sdo6863								# This comp zeros the axis b during homing
+loadrt controlFSM											# Load Finite State Machine for Enable and Fault and Homing Functions		
+loadrt gyro_error											# Load the Gyro Error Checking. Time stamp and CRC checking
+#loadrt velocity_offset count=3								#  Not used as B is torque follower Load component to calculate velocity offsets for each dual servo axis
+loadrt backlash_8 count=3				               		# Load component that controls backlash in a dual servo joint. Three axis
+loadrt status_bits count=3			  						# This function is for debugging that breaks out the status word into bit flags
+
+loadusr sdoBatch -n Vel_Mode.sh
+loadusr sdoBatch -n Vel_Mode_Both.sh
+loadusr sdoBatch -n POS_Mode.sh
+
+##threads  Creates the rt task list
+newthread main-thread fp 500000    # 2000 updates per second
+
+## Add all functions to real time thread
+# First Function
+addf lcec.read-all main-thread			# Attach EtherCat PDO read function
+
+addf wheel.0.update main-thread        # Wheel (0 Pan) function 
+addf wheel.1.update main-thread        # Wheel (1 Tilt) function 
+addf wheel.2.update main-thread        # Wheel (2 Roll) function    
+
+# Process Threads Added Here
+addf conv_s32_float.0.funct main-thread		# Attach S32 to float converter Used for Tilt Axis A Actual Torque input convert
+addf conv_s32_float.1.funct main-thread		# Attach S32 to float converter Used for Tilt Axis B Actual Torque input convert
+addf conv_s32_float.2.funct main-thread		# Attach S32 to float converter Used for Roll Axis A Actual Torque input convert
+addf conv_s32_float.3.funct main-thread		# Attach S32 to float converter Used for Roll Axis B Actual Torque input convert
+addf conv_s32_float.4.funct main-thread		# Attach S32 to float converter Used for Pan  Axis A Actual Torque input convert
+addf conv_s32_float.5.funct main-thread		# Attach S32 to float converter Used for Pan  Axis B Actual Torque input convert
+addf conv_s32_float.6.funct main-thread		# Used in axis 1 back lash comp to swap sign of offset
+addf conv_s32_float.7.funct main-thread		# Used in Pan axis Velocity Axis A for backlash comp
+addf conv_s32_float.8.funct main-thread		# Used in Roll axis Velocity Axis A for backlash comp
+addf conv_s32_float.9.funct main-thread		# Used in Tilt axis Velocity Axis A for backlash comp
+addf conv_s32_float.10.funct main-thread	# Used in to Convert Axis 0 HV Value to Float
+addf conv_u32_bit.0.funct main-thread       # Used to make USBcomm a bit instead of a u32 for Bodnar Generic0 
+addf conv_u32_bit.1.funct main-thread       # Used to make USBcomm a bit instead of a u32 for Bodnar Generic1 
+addf conv_bit_u32.0.funct main-thread       # Used to make Combined USBcomm a u32 again after logic ops
+
+addf ddt.0.funct main-thread				# Used in Tilt backlash comp
+addf ddt.1.funct main-thread				# Used in Roll backlash comp
+addf ddt.2.funct main-thread				# Used in Pan backlash comp
+addf ddt.3.funct main-thread				# Used in Jacobian to derive Angular Pan Accel
+addf ddt.4.funct main-thread				# Used in Jacobian to derive Angular Roll Accel
+addf ddt.5.funct main-thread				# Used in Jacobian to derive Angular Tilt Accel
+
+addf scale.0.funct main-thread			# Scale function Used for JS1 scaling
+addf scale.1.funct main-thread			# Scale function Used for JS2 scaling
+addf scale.2.funct main-thread			# Scale function Used for JS3 scaling
+addf scale.3.funct main-thread			# Scale function Used for JS1 scaling
+addf scale.4.funct main-thread			# Scale function Used for JS2 scaling
+addf scale.5.funct main-thread			# Scale function Used for JS3 scaling
+addf scale.6.funct main-thread			# Scale function Used for JS1 scaling
+addf scale.7.funct main-thread			# Scale function Used for JS2 scaling
+addf scale.8.funct main-thread			# Scale function Used for JS3 scaling
+addf scale.9.funct main-thread			# Scale function Used for Pan Wheel scaling
+addf scale.10.funct main-thread			# Scale function Used for Roll Wheel scaling
+addf scale.11.funct main-thread			# Scale function Used for Tilt Wheel scaling
+addf scale.12.funct main-thread			# Scale function Used for Pan Wheel scaling
+addf scale.13.funct main-thread			# Scale function Used for Roll Wheel scaling
+addf scale.14.funct main-thread			# Scale function Used for Tilt Wheel scaling
+
+addf mult2.0.funct main-thread			# Multiply function for swapping stab signal direction Axis 0
+addf mult2.1.funct main-thread			# Multiply function for swapping stab signal direction Axis 1
+addf mult2.2.funct main-thread			# Multiply function for swapping stab signal direction Axis 2 
+addf mult2.3.funct main-thread			# Multiply function for swapping direction of Tilt command Sig final output for offset motors
+addf mult2.4.funct main-thread			# Multiply torque command for Tilt Axis B sign inversion
+addf mult2.5.funct main-thread			# Used in Axis 1 backlash to flip sign of Axis B position offset.
+
+addf deadzone.0.funct main-thread			# sets deadzone for JS1
+addf deadzone.1.funct main-thread			# sets deadzone for JS2
+addf deadzone.2.funct main-thread			# sets deadzone for JS3
+
+addf lowpass.0.funct main-thread			# Sets up lowpass for JS1
+addf lowpass.1.funct main-thread			# Sets up lowpass for JS2
+addf lowpass.2.funct main-thread			# Sets up lowpass for JS3
+addf lowpass.3.funct main-thread			# Sets up lowpass for Tilt backlash torqueA
+addf lowpass.4.funct main-thread			# Sets up lowpass for Tilt backlash torqueB
+addf lowpass.5.funct main-thread			# Sets up lowpass for Roll backlash torqueA
+addf lowpass.6.funct main-thread			# Sets up lowpass for Roll backlash torqueB
+addf lowpass.7.funct main-thread			# Sets up lowpass for Pan backlash torqueA
+addf lowpass.8.funct main-thread			# Sets up lowpass for Pan backlash torqueA
+addf lowpass.9.funct main-thread			# Sets up lowpass for Roll backlash velocity
+addf lowpass.10.funct main-thread			# Sets up lowpass for Roll backlash acceleration
+addf lowpass.11.funct main-thread			# Sets up lowpass for lcec.0.6.angX1
+addf lowpass.12.funct main-thread			# Sets up lowpass for Pan backlash velocity
+addf lowpass.13.funct main-thread			# Sets up lowpass for Pan backlash acceleration
+addf lowpass.14.funct main-thread			# Sets up lowpass for lcec.0.6.angZ1
+addf lowpass.15.funct main-thread			# Sets up lowpass for lcec.0.6.angZ1
+addf lowpass.16.funct main-thread			# Use to filter velocityA for Pan backlash
+addf lowpass.17.funct main-thread			# Use to filter velocityA for Roll backlash
+addf lowpass.18.funct main-thread			# Use to filter velocityA for Tilt backlash
+addf lowpass.19.funct main-thread			# Used to filter Tilt Acceleration
+addf lowpass.20.funct main-thread			# Sets up lowpass for Pan Wheel Dampening
+addf lowpass.21.funct main-thread			# Sets up lowpass for Roll Wheel Dampening
+addf lowpass.22.funct main-thread			# Sets up lowpass for Tilt Wheel Dampening
+addf lowpass.23.funct main-thread			# used to filter derived cam gyro Pan accel in Jacobian
+addf lowpass.24.funct main-thread			# used to filter derived cam gyro Roll accel in Jacobian
+addf lowpass.25.funct main-thread			# used to filter derived cam gyro Tilt accel in Jacobian
+
+addf horizon.0.horizon main-thread		# Sets up for Pan Horizon Control
+addf horizon.1.horizon main-thread		# Sets up for Roll Horizon Control
+addf horizon.2.horizon main-thread		# Sets up for Tilt Horizon Control
+
+addf pid.3.do-pid-calcs main-thread		# Add in pid calculations for Pan Horion
+addf pid.4.do-pid-calcs	main-thread		# Add in pid calculations for Roll Horizon 
+addf pid.5.do-pid-calcs	main-thread		# Add in pid calculations for Tilt Horizon
+
+addf pid.0.do-pid-calcs main-thread		# Add in pid calculations for stabs
+addf pid.1.do-pid-calcs	main-thread		# Add in pid calculations for stabs
+addf pid.2.do-pid-calcs	main-thread		# Add in pid calculations for stabs
+
+addf siggen.0.update main-thread		# Add Signal generation update functions
+
+addf mux2.0.funct main-thread				# Add mux function for Axis 0 Output signal select Op direct or Op Horizon
+addf mux2.1.funct main-thread				# Add mux function for Axis 0 Output signal select Op direct/ Horizon or Op Stab
+addf mux2.2.funct main-thread				# Add mux function for Axis 0 Output signal select Op  or Sine Signal for tuning
+addf mux2.3.funct main-thread				# Add mux function for Axis 1 Output signal select Op direct or Op Horizon
+addf mux2.4.funct main-thread				# Add mux function for Axis 1 Output signal select Op direct/ Horizon or Op Stab
+addf mux2.5.funct main-thread				# Add mux function for Axis 1 Output signal select Op  or Sine Signal for tuning
+addf mux2.6.funct main-thread				# Add mux function for Axis 2 Output signal select Op direct or Op Horizon
+addf mux2.7.funct main-thread				# Add mux function for Axis 2 Output signal select Op direct/ Horizon or Op Stab
+addf mux2.8.funct main-thread				# Add mux function for Axis 2 Output signal select Op  or Sine Signal for tuning
+addf mux2.9.funct main-thread				# Add mux function for Siggen to switch between Sine and Square wave output
+addf mux2.10.funct main-thread 				# Add mux function for jacobian enable between homed signal and axis mode
+addf mux2.11.funct main-thread 				# Add mux function for Pan Operator Command Select between JS and Command
+addf mux2.12.funct main-thread 				# Add mux function for Roll Operator Command Select between JS and Command
+addf mux2.13.funct main-thread 				# Add mux function for Tilt Operator Command Select between JS and Command
+
+addf ReverseMUX2.0 main-thread			# Add reverseMUX to allow Shift function on Axis switch 0
+addf ReverseMUX2.1 main-thread			# Add reverseMUX to allow Shift function on Axis switch 1
+addf ReverseMUX2.2 main-thread			# Add reverseMUX to allow Shift function on Axis switch 2
+addf ReverseMUX2.3 main-thread			# Add reverseMUX to allow Shift function on Axis switch 3
+addf ReverseMUX2.4 main-thread			# Add reverseMUX to allow Shift function on Axis switch 4
+addf ReverseMUX2.5 main-thread			# Add reverseMUX to allow Shift function on Axis switch 5
+
+addf and2.0.funct main-thread			# And function used for dual switch function upper right two....
+addf and2.1.funct main-thread           # AND function to and to together both Bodnar USBcomm signals for fault indication 
+
+addf div2.0.funct main-thread           # Add divide function
+
+addf or2.0.funct main-thread            # Or gate used to OR together Enable Switch and UI Enable Button
+addf or2.1.funct main-thread            # Or gate used to OR together Fault Switch and UI Fault Button
+addf or2.2.funct main-thread            # Or gate used to OR together bodnar and wheels USBcomm signals
+addf or2.3.funct main-thread            # Not used yet
+
+addf or2.4.funct main-thread            # OR gate for Pan  Stab Switch and GUI button
+addf or2.5.funct main-thread            # OR gate for Roll Stab Switch and GUI button
+addf or2.6.funct main-thread            # OR gate for Tilt Stab Switch and GUI button
+
+addf or2.7.funct main-thread            # OR gate for Pan  Horizon Switch and GUI button
+addf or2.8.funct main-thread            # OR gate for Roll Horizon Switch and GUI button
+addf or2.9.funct main-thread            # OR gate for Tilt Horizon Switch and GUI button
+
+addf toggle.0.funct main-thread			# Toggle Stab Select for Axis 0 Stabs or Live
+addf toggle.1.funct main-thread			# Toggle Stab Select for Axis 1 Stabs or Live
+addf toggle.2.funct main-thread			# Toggle Stab Select for Axis 2 Stabs or Live
+addf toggle.3.funct main-thread			# Toggle Sine Signal for Tuning on off for Axis0 Tuning or live Select
+addf toggle.4.funct main-thread			# Toggle Sine Signal for Tuning on off for Axis1 Tuning or live Select
+addf toggle.5.funct main-thread			# Toggle Sine Signal for Tuning on off for Axis2 Tuning or live Select
+addf toggle.6.funct main-thread			# Toggle Horizon or Live Axis 0
+addf toggle.7.funct main-thread			# Toggle Horizon or Live Axis 1
+addf toggle.8.funct main-thread			# Toggle Horizon or Live Axis 2
+addf toggle.9.funct main-thread			# Toggle Tuning or Live Axis 0
+addf toggle.10.funct main-thread		# Toggle Tuning or Live Axis 1
+addf toggle.11.funct main-thread		# Toggle Tuning or Live Axis 2
+addf toggle.12.funct main-thread		# Toggle Wheel or JS Pan Command
+addf toggle.13.funct main-thread		# Toggle Wheel or JS Roll Command
+addf toggle.14.funct main-thread		# Toggle Wheel or JS Tilt Command
+addf toggle.15.funct main-thread        # Toggle Combined Enable signal after XOR 
+
+# Control Statemachine Before Output
+addf controlFSM.0.updateFSM main-thread  	# fault checking and enabling state machine
+
+addf gyro-error.0.checkGyro main-thread		# Gyro Error Parser function
+
+addf status-bits.0.statusDecode main-thread	# Add the status debug bit tool 
+addf status-bits.1.statusDecode main-thread	# Add the status debug bit tool 
+addf status-bits.2.statusDecode main-thread	# Add the status debug bit tool 
+
+addf conv_float_s32.0.funct main-thread		# Attach Float to S32 instance 0 Used for JS1 AxisA
+addf conv_float_s32.1.funct main-thread		# Attach Float to S32 instance 1 Used for JS2
+addf conv_float_s32.2.funct main-thread		# Attach Float to S32 instance 2 Used for JS3
+addf conv_float_s32.3.funct main-thread		# Attach Float to S32 instance 3 Used for JS1 AxisB
+
+addf conv_float_s32.4.funct main-thread		# Attach Float to S32 instance 4 Used for Tilt Axis A Torque Actual output convert
+addf conv_float_s32.5.funct main-thread		# Attach Float to S32 instance 5 Used for Tilt Axis B Torque Actual output convert
+addf conv_float_s32.6.funct main-thread		# Attach Float to S32 instance 6 Used for Roll Axis A Torque Actual output convert
+addf conv_float_s32.7.funct main-thread		# Attach Float to S32 instance 7 Used for Roll Axis B Torque Actual output convert
+addf conv_float_s32.8.funct main-thread		# Attach Float to S32 instance 8 Used for Pan Axis A Torque Actual output convert
+addf conv_float_s32.9.funct main-thread		# Attach Float to S32 instance 9 Used for Pan Axis B Torque Actual output convert
+addf conv_float_s32.10.funct main-thread	# Attach Float to S32 instance 3 Used for Tilt Axis B Velocity Offset output convert
+addf conv_float_s32.11.funct main-thread	# Attach Float to S32 instance 3 Used for Tilt Axis B Velocity Offset output convert
+addf conv_float_s32.12.funct main-thread	# Attach Float to S32 instance 3 Used for Pan Axis Torque B Out
+addf conv_float_s32.13.funct main-thread	# Attach Float to S32 instance 3 Used for Roll Axis Torque B Out
+addf conv_float_s32.14.funct main-thread	# Attach Float to S32 instance 3 Used for Tilt Axis Torque B Out
+addf conv_float_s32.15.funct main-thread	# Attach Float to S32 instance 3 Used for Roll Axis backlash comp vel
+addf conv_float_s32.16.funct main-thread	# Attach Float to S32 instance 3 Used for Roll Axis backlash comp accel
+addf conv_float_s32.17.funct main-thread	# Attach Float to S32 instance 3 Used for Pan Axis backlash comp vel
+addf conv_float_s32.18.funct main-thread	# Attach Float to S32 instance 3 Used for Pan Axis backlash comp accel
+addf conv_float_s32.19.funct main-thread	# used in Axis 1 back lash comp to swamp sign
+addf conv_float_s32.20.funct main-thread	# Attach Float to S32 instance 9 Used for Pan Axis A Velocity Actual output convert
+addf conv_float_s32.21.funct main-thread	# Attach Float to S32 instance 9 Used for Roll Axis A Velocity Actual output convert
+addf conv_float_s32.22.funct main-thread	# Attach Float to S32 instance 9 Used for Tilt Axis A Velocity Actual output convert
+addf conv_float_s32.23.funct main-thread	# Attach Float to S32 instance 23 Used for Tilt Axis A Accel Actual output convert
+
+# Axis functions added here before the output
+#addf velocity-offset.0 main-thread		# Axis 0 (pan) velocity offset calcs
+#addf velocity-offset.1 main-thread		# Axis 1 (Roll) velocity offset calcs
+#addf velocity-offset.2 main-thread		# Axis 2 (Tilt) velocity offset calcs
+addf  backlash-8.0.offset main-thread		# Axis 0 Backlash comp
+addf  backlash-8.1.offset main-thread		# Axis 1 Backlash comp
+addf  backlash-8.2.offset main-thread		# Axis 2 Backlash comp
+
+# IK calcs done here
+addf jacobianNewTRv3.0.calculate main-thread		# IK calculations done before output
+
+# Output Functions Added To Thread Here
+addf lcec.write-all main-thread			# Attach EtherCat PDO write function
+
+# Convert USBcomm signals to bit from u32  (shoud change the component but...)
+net bodnar_0_USBcomm_bit conv_u32_bit.0.in bodnar-USB-generic0.0.USBcomm  
+net bodnar_1_USBcomm_bit conv_u32_bit.1.in bodnar-USB-generic1.0.USBcomm  
+
+# And together USB OK signals from both bodnar modules, in bit form now
+net Bodnar_USB0_OK and2.1.in0 <= conv_u32_bit.0.out      
+net Bodnar_USB1_OK and2.1.in1 <= conv_u32_bit.1.out      
+
+# Or together USB OK from Bodar modules and Wheels
+net FSM_USB_Bodnar or2.2.in0 <= and2.1.out      # This section adds in the WHeels FTDI usb
+net FSM_USB_Wheels or2.2.in1 <= wheelsFTDI.USBComm
+net FSM_USB_comm_bit <= or2.2.out 	            # Get combined USB Comms active flag from USB component	
+
+net FSM_USB_comm_bit => conv_bit_u32.0.in          # Convert back to u32
+net FSM_USB_comm_u32 <= conv_bit_u32.0.out
+net FSM_USB_comm_u32 => controlFSM.0.USBcomm 		# Send it to FSM input
+
+net FSM_Fault_Present <= controlFSM.0.HeadFaulted  # Get the signal for the Fault present bit., Indicates a fault in either the USB comms for wheels or Bodar and also a fault in the Etherca amps
+net Head_Is_Enabled <= controlFSM.0.HeadEnabled     # Get signal that head has enabled
+
+#Read in Actual Positions
+net Axis_0_Actual_Position_A <= lcec.0.3.Position_Actual_Axis_A_IN	 # Read in the A Axis Positions
+net Axis_1_Actual_Position_A <= lcec.0.4.Position_Actual_Axis_A_IN
+net Axis_2_Actual_Position_A <= lcec.0.5.Position_Actual_Axis_A_IN
+
+# Read In Status Words
+net FSM_Status_Word_Slave0_AxisA <= lcec.0.3.CTRL_Status_Word_Axis_A_IN
+net FSM_Status_Word_Slave0_AxisA => controlFSM.0.StatusWord0A
+net FSM_Status_Word_Slave0_AxisA => status-bits.0.statusWord-Axis-A
+
+net FSM_Status_Word_Slave0_AxisB <= lcec.0.3.CTRL_Status_Word_Axis_B_IN
+net FSM_Status_Word_Slave0_AxisB => controlFSM.0.StatusWord0B
+net FSM_Status_Word_Slave0_AxisB => status-bits.0.statusWord-Axis-B 
+
+net FSM_Status_Word_Slave1_AxisA <= lcec.0.4.CTRL_Status_Word_Axis_A_IN
+net FSM_Status_Word_Slave1_AxisA => controlFSM.0.StatusWord1A
+net FSM_Status_Word_Slave1_AxisA => status-bits.1.statusWord-Axis-A
+
+net FSM_Status_Word_Slave1_AxisB <= lcec.0.4.CTRL_Status_Word_Axis_B_IN
+net FSM_Status_Word_Slave1_AxisB => controlFSM.0.StatusWord1B
+net FSM_Status_Word_Slave1_AxisB => status-bits.1.statusWord-Axis-B
+
+net FSM_Status_Word_Slave2_AxisA <= lcec.0.5.CTRL_Status_Word_Axis_A_IN
+net FSM_Status_Word_Slave2_AxisA => controlFSM.0.StatusWord2A
+net FSM_Status_Word_Slave2_AxisA => status-bits.2.statusWord-Axis-A
+
+net FSM_Status_Word_Slave2_AxisB <= lcec.0.5.CTRL_Status_Word_Axis_B_IN
+net FSM_Status_Word_Slave2_AxisB => controlFSM.0.StatusWord2B
+net FSM_Status_Word_Slave2_AxisB => status-bits.2.statusWord-Axis-B
+
+# Read In  Latched Status Words
+net FSM_LatchedStatus_Word_Slave0_AxisA <= lcec.0.3.CTRL_Latched_Status_Axis_A_IN
+net FSM_LatchedStatus_Word_Slave0_AxisA => controlFSM.0.Latched0AIN
+
+net FSM_LatchedStatus_Word_Slave0_AxisB <= lcec.0.3.CTRL_Latched_Status_Axis_B_IN
+net FSM_LatchedStatus_Word_Slave0_AxisB => controlFSM.0.Latched0BIN
+
+net FSM_LatchedStatus_Word_Slave1_AxisA <= lcec.0.4.CTRL_Latched_Status_Axis_A_IN
+net FSM_LatchedStatus_Word_Slave1_AxisA => controlFSM.0.Latched1AIN
+
+net FSM_LatchedStatus_Word_Slave1_AxisB <= lcec.0.4.CTRL_Latched_Status_Axis_B_IN
+net FSM_LatchedStatus_Word_Slave1_AxisB => controlFSM.0.Latched1BIN
+					  
+net FSM_LatchedStatus_Word_Slave2_AxisA <= lcec.0.5.CTRL_Latched_Status_Axis_A_IN
+net FSM_LatchedStatus_Word_Slave2_AxisA => controlFSM.0.Latched2AIN
+
+net FSM_LatchedStatus_Word_Slave2_AxisB <= lcec.0.5.CTRL_Latched_Status_Axis_B_IN
+net FSM_LatchedStatus_Word_Slave2_AxisB => controlFSM.0.Latched2BIN
+
+# Read In M Display of Mode of operation
+net FSM_Display_Mode_Op_Slave0_AxisA <= lcec.0.3.CTRL_D_M_of_O_Axis_A_IN
+net FSM_Display_Mode_Op_Slave0_AxisA => controlFSM.0.DisplayModeOP0A
+
+net FSM_Display_Mode_Op_Slave0_AxisB <= lcec.0.3.CTRL_D_M_of_O_Axis_B_IN
+#net FSM_Display_Mode_Op_Slave0_AxisB => controlFSM.0.DisplayModeOP0B				# B Axis Modes of Op Not used in ControlFSM any more
+
+net FSM_Display_Mode_Op_Slave1_AxisA <= lcec.0.4.CTRL_D_M_of_O_Axis_A_IN
+net FSM_Display_Mode_Op_Slave1_AxisA => controlFSM.0.DisplayModeOP1A
+
+net FSM_Display_Mode_Op_Slave1_AxisB <= lcec.0.4.CTRL_D_M_of_O_Axis_B_IN
+#net FSM_Display_Mode_Op_Slave1_AxisB => controlFSM.0.DisplayModeOP1B
+
+net FSM_Display_Mode_Op_Slave2_AxisA <= lcec.0.5.CTRL_D_M_of_O_Axis_A_IN
+net FSM_Display_Mode_Op_Slave2_AxisA => controlFSM.0.DisplayModeOP2A
+
+net FSM_Display_Mode_Op_Slave2_AxisB <= lcec.0.5.CTRL_D_M_of_O_Axis_B_IN
+#net FSM_Display_Mode_Op_Slave2_AxisB => controlFSM.0.DisplayModeOP2B
+
+# Send out the Mode of Operation 
+net FSM_Mode_of_Operation_Slave0_AxisA <= controlFSM.0.ModeOP0A
+#net FSM_Mode_of_Operation_Slave0_AxisA => lcec.0.3.CTRL_M_of_O_Axis_A_OUT
+
+net FSM_Mode_of_Operation_Slave0_AxisB <= controlFSM.0.ModeOP0B
+#net FSM_Mode_of_Operation_Slave0_AxisB => lcec.0.3.CTRL_M_of_O_Axis_B_OUT
+
+net FSM_Mode_of_Operation_Slave1_AxisA <= controlFSM.0.ModeOP1A
+#net FSM_Mode_of_Operation_Slave1_AxisA => lcec.0.4.CTRL_M_of_O_Axis_A_OUT
+
+net FSM_Mode_of_Operation_Slave1_AxisB <= controlFSM.0.ModeOP1B
+#net FSM_Mode_of_Operation_Slave1_AxisB => lcec.0.4.CTRL_M_of_O_Axis_B_OUT
+
+net FSM_Mode_of_Operation_Slave2_AxisA <= controlFSM.0.ModeOP2A
+#net FSM_Mode_of_Operation_Slave2_AxisA => lcec.0.5.CTRL_M_of_O_Axis_A_OUT
+
+net FSM_Mode_of_Operation_Slave2_AxisB <= controlFSM.0.ModeOP2B
+#net FSM_Mode_of_Operation_Slave2_AxisB => lcec.0.5.CTRL_M_of_O_Axis_B_OUT
+
+
+####### Configure SDOs for Latched Status clearing
+#### Send out Latched Status Words to reset latched Faults vis SDO message
+net FSM_LatchedStatusOut_Word_Slave0_AxisA <= controlFSM.0.Latched0AOUT
+net FSM_LatchedStatusOut_Word_Slave0_AxisA => sdo-download.0.DATAU
+
+net FSM_LatchedStatusOut_Word_Slave0_AxisB <= controlFSM.0.Latched0BOUT
+net FSM_LatchedStatusOut_Word_Slave0_AxisB => sdo-download.1.DATAU
+
+net FSM_LatchedStatusOut_Word_Slave1_AxisA <= controlFSM.0.Latched1AOUT
+net FSM_LatchedStatusOut_Word_Slave1_AxisA => sdo-download.2.DATAU
+
+net FSM_LatchedStatusOut_Word_Slave1_AxisB <= controlFSM.0.Latched1BOUT
+net FSM_LatchedStatusOut_Word_Slave1_AxisB => sdo-download.3.DATAU 
+
+net FSM_LatchedStatusOut_Word_Slave2_AxisA <= controlFSM.0.Latched2AOUT
+net FSM_LatchedStatusOut_Word_Slave2_AxisA <= sdo-download.4.DATAU
+
+net FSM_LatchedStatusOut_Word_Slave2_AxisB <= controlFSM.0.Latched2BOUT
+net FSM_LatchedStatusOut_Word_Slave2_AxisB => sdo-download.5.DATAU
+
+
+#### Configure SDO messages andData items connect enables
+# USed to clear Faults in systems 0x2183 is the latching fault register
+# We read in the fault register above and send it back out to clear any fault present
+# Except system critical faults that require a reboot
+setp sdo-download.0.DATATYPE 7 				# Type 7 is unint32
+net Combined_Clear_Fault_SW => sdo-download.0.ENABLE		# Connect switch 
+setp sdo-download.0.INDEX 0x2183			# Latched Status Register Axis A
+setp sdo-download.0.SUBINDEX 0
+setp sdo-download.0.SLAVEPOSITION 3		# Slave 0 (Pan Axis)
+
+setp sdo-download.1.DATATYPE 7 				# Type 7 is unint32
+net Combined_Clear_Fault_SW => sdo-download.1.ENABLE		# Connect switch 
+setp sdo-download.1.INDEX 0x2983			# Latched Status Register Axis B
+setp sdo-download.1.SUBINDEX 0
+setp sdo-download.1.SLAVEPOSITION 3		# Slave 0 (Pan Axis)
+
+setp sdo-download.2.DATATYPE 7 				# Type 7 is unint32
+net Combined_Clear_Fault_SW => sdo-download.2.ENABLE		# Connect switch
+setp sdo-download.2.INDEX 0x2183			# Latched Status Register Axis A
+setp sdo-download.2.SUBINDEX 0
+setp sdo-download.2.SLAVEPOSITION 4		# Slave 1 (Roll Axis)
+
+setp sdo-download.3.DATATYPE 7 				# Type 7 is unint32
+net Combined_Clear_Fault_SW => sdo-download.3.ENABLE		# Connect switch
+setp sdo-download.3.INDEX 0x2983			# Latched Stlimitatus Register Axis B
+setp sdo-download.3.SUBINDEX 0
+setp sdo-download.3.SLAVEPOSITION 4		# Slave 1 (Roll Axis)
+
+setp sdo-download.4.DATATYPE 7 				# Type 7 is unint32
+net Combined_Clear_Fault_SW => sdo-download.4.ENABLE		# Connect switch
+setp sdo-download.4.INDEX 0x2183			# Latched Status Register Axis A
+setp sdo-download.4.SUBINDEX 0
+setp sdo-download.4.SLAVEPOSITION 5			# Slave 2 (Tilt Axis)
+
+setp sdo-download.5.DATATYPE 7 				# Type 7 is unint32
+net Combined_Clear_Fault_SW => sdo-download.5.ENABLE		# Connect switch
+setp sdo-download.5.INDEX 0x2983			# Latched Status Register Axis B	
+setp sdo-download.5.SUBINDEX 0
+setp sdo-download.5.SLAVEPOSITION 5 			# Slave 2 (Tilt Axis)
+
+# Send out Control Words
+net FSM_Control_Word_Slave0_AxisA <= controlFSM.0.ControlWord0A
+net FSM_Control_Word_Slave0_AxisA => lcec.0.3.CTRL_Control_Word_Axis_A_OUT
+
+net FSM_Control_Word_Slave0_AxisB <= controlFSM.0.ControlWord0B
+net FSM_Control_Word_Slave0_AxisB => lcec.0.3.CTRL_Control_Word_Axis_B_OUT
+
+net FSM_Control_Word_Slave1_AxisA <= controlFSM.0.ControlWord1A
+net FSM_Control_Word_Slave1_AxisA => lcec.0.4.CTRL_Control_Word_Axis_A_OUT
+
+net FSM_Control_Word_Slave1_AxisB <= controlFSM.0.ControlWord1B
+net FSM_Control_Word_Slave1_AxisB => lcec.0.4.CTRL_Control_Word_Axis_B_OUT
+
+net FSM_Control_Word_Slave2_AxisA <= controlFSM.0.ControlWord2A
+net FSM_Control_Word_Slave2_AxisA => lcec.0.5.CTRL_Control_Word_Axis_A_OUT
+
+net FSM_Control_Word_Slave2_AxisB <= controlFSM.0.ControlWord2B
+net FSM_Control_Word_Slave2_AxisB => lcec.0.5.CTRL_Control_Word_Axis_B_OUT
+
+
+### Gyro Error Parser Function   This is for checking the gyro data for errors
+net Gyro_Error_Word <= lcec.0.6.Padding16
+net Gyro_Error_Word => gyro-error.0.ErrorBytes
+
+net Gyro1_TimeStamp_H <= lcec.0.6.HWordTime1
+net Gyro1_TimeStamp_H => gyro-error.0.HWordTime1
+
+net Gyro1_TimeStamp_L <= lcec.0.6.LWordTime1
+net Gyro1_TimeStamp_L => gyro-error.0.LWordTime1
+
+net Gyro2_TimeStamp_H <= lcec.0.6.HWordTime2
+net Gyro2_TimeStamp_H => gyro-error.0.HWordTime2
+
+net Gyro2_TimeStamp_L <= lcec.0.6.LWordTime2
+net Gyro2_TimeStamp_L => gyro-error.0.LWordTime2
+
+
+###TUNING_SECTION#### Setup Signal Generator Parameters for Tuning Stimulus
+### For Axis Tuning use Pot5 for Frequency 
+setp bodnar-USB-generic0.0.Pot5-Scale  0.0012218963832		# Scale Factor to make sine wave freq go to max 5 hz
+setp bodnar-USB-generic0.0.Pot5-Offset 0.0
+
+# Axis Tuning use Pot6 for Amplitude
+setp bodnar-USB-generic0.0.Pot6-Scale  4			# Scale for amplitude of sine wave
+setp bodnar-USB-generic0.0.Pot6-Offset 0			
+
+net Sig_freq   <= bodnar-USB-generic0.0.Pot5    		# Use Pot 5 to set signal frequency
+net Sig_ampl   <= bodnar-USB-generic0.0.Pot6    		# Use Pot 6 to set signal Amplitude
+
+net Sig_freq => siggen.0.frequency
+net Sig_ampl => siggen.0.amplitude
+net Sig_sin_float <= siggen.0.sine
+
+net Sig_sin_float => mux2.9.in0				# Multiplex the tuning signal between Sine wave
+net Sig_sqr_float => mux2.9.in1				# or Square wave
+net Sig_Out_float => mux2.9.out
+
+setp mux2.9.sel 0					# This is the select Value for sq (1) or sin (0) 
+
+
+#  OPERATOR_SECTION  ###  Set up Joy Stick Signals and Switches on Operator Console. and Wheels
+#	Switch Multiplex Section    # Set up Swtich Shift Functions here
+# First the 'Shift Switch
+net Shift_Switch <= bodnar-USB-generic0.0.SW10
+net Shift_Switch => ReverseMUX2.0.in1
+net Shift_Switch => ReverseMUX2.1.in1
+net Shift_Switch => ReverseMUX2.2.in1
+net Shift_Switch => ReverseMUX2.3.in1
+net Shift_Switch => ReverseMUX2.4.in1
+net Shift_Switch => ReverseMUX2.5.in1
+
+# Then the "Cmd Switch'
+net Left_CMD_Switch_0 bodnar-USB-generic0.0.SW9  ReverseMUX2.0.in0
+net Left_CMD_Switch_1 bodnar-USB-generic1.0.SW11 ReverseMUX2.1.in0
+net Left_CMD_Switch_2 bodnar-USB-generic1.0.SW10 ReverseMUX2.2.in0
+
+net Right_CMD_Switch_0 bodnar-USB-generic0.0.SW3 ReverseMUX2.3.in0
+net Right_CMD_Switch_1 bodnar-USB-generic1.0.SW5 ReverseMUX2.4.in0
+net Right_CMD_Switch_2 bodnar-USB-generic1.0.SW4 ReverseMUX2.5.in0
+
+# Now net the Outputs 
+net Left_Normal_Axis_0_Switch    ReverseMUX2.0.out0   # Turns on or off the stabiliation for PAN
+net Left_Shift_Axis_0_Switch	 ReverseMUX2.0.out1   # Toggles Direction JS2
+net Left_Normal_Axis_1_Switch 	 ReverseMUX2.1.out0   # Turns on or off the stabiliation for Tilt
+net Left_Shift_Axis_1_Switch	 ReverseMUX2.1.out1   # Toggles Direction JS3
+net Left_Normal_Axis_2_Switch 	 ReverseMUX2.2.out0   # Turns on or off the stabiliation for Roll
+net Left_Shift_Axis_2_Switch	 ReverseMUX2.2.out1   # Toggles Direction JS1
+
+net Rt_Normal_Axis_0_Switch 	 ReverseMUX2.3.out0	    # Toggle the Horizon on and off
+net Rt_Shift_Axis_0_Switch	     ReverseMUX2.3.out1	    # Turn on signal generator for tuning
+net Rt_Normal_Axis_1_Switch 	 ReverseMUX2.4.out0	    # Toggle the Horizon on and off 
+net Rt_Shift_Axis_1_Switch	     ReverseMUX2.4.out1	    # Turn on signal generator for tuning
+net Rt_Normal_Axis_2_Switch 	 ReverseMUX2.5.out0	    # Toggle Horizon on and off
+net Rt_Shift_Axis_2_Switch	     ReverseMUX2.5.out1 	# Turn on signal generator for tuning
+
+# Tuning  Selector Switchs
+net Rt_Shift_Axis_0_Switch 	=> toggle.9.in				# Get the banked Axis 0 Right switch
+net Axis_0_Tuning_select  	<= toggle.9.out  			# Connect it to the pan Horizon Select 
+
+net Rt_Shift_Axis_1_Switch 	=> toggle.10.in				# Get the banked Axis 1 Right switch
+net Axis_1_Tuning_select  	<= toggle.10.out  			# Connect it to the roll Horizon Select 
+
+net Rt_Shift_Axis_2_Switch 	=> toggle.11.in				# Get the banked Axis 2 Right switch
+net Axis_2_Tuning_select  	<= toggle.11.out  			# Connect it to the tilt Horizon Select 
+
+# Control FSM Switch implementations
+net Console_Enable_Switch <= bodnar-USB-generic0.0.SW11			# Connect FSM enable input to USB console ORd with GUI Pin
+net Shift_Switch_Right	bodnar-USB-generic0.0.SW4      
+#net Shift_Switch_Right  controlFSM.0.HomeStartFlag	 	# 2nd from top switch slid right for homing
+net  Clear_Fault_SW <= bodnar-USB-generic0.0.SW5  			# Wire Console Switch 5 to be the switch to clear Faults, Ord with GUI Pin
+                                                                
+# Operator Command Selection Switches
+net Left_Shift_Axis_0_Switch 	=> toggle.12.in 
+net Pan_Command_Select 		<= toggle.12.out  		# Command select for Axis 0 (Pan) JS or Wheel
+
+net Left_Shift_Axis_1_Switch 	=> toggle.13.in
+net Roll_Command_Select 	<= toggle.13.out 			# Command select for Axis 1 (Roll) JS or Wheel
+
+net Left_Shift_Axis_2_Switch 	=> toggle.14.in
+net Tilt_Command_Select 	<= toggle.14.out 			# Command select for Axis 1 (Tilt) JS or  Wheel
+
+# System Status Section
+# System Voltage
+net System_Voltage_10_s32 <= lcec.0.3.Motor_SysVoltage_Axis_A_IN            # Get System Voltage (is actually Pan Amp HV reading in tenths of volts
+
+#  GUI Interface Section. GUI Halpins are multiplex
+
+# OR the Fault Switch Console or GUI
+net  Clear_Fault_SW => or2.1.in0
+net  UI_Clear_Fault_Button => or2.1.in1
+net  Combined_Clear_Fault_SW or2.1.out => controlFSM.0.FAULTSWITCH
+
+#et  Clear_Fault_SW => controlFSM.0.FAULTSWITCH
+# OR the Enable Switch, Console or GUI
+net Console_Enable_Switch => or2.0.in0                           # Send this to an OR gate with the UI botton
+
+net UI_Enable => or2.0.in1
+
+net Combined_Enable_Signal <= or2.0.out 
+net Combined_Enable_Signal => controlFSM.0.EnableSwitch        # Send the Or'd & Estoplatched signal to ControlFSM so the head enables from either button or switch
+
+#net Console_Enable_Switch => controlFSM.0.EnableSwitch       # This is only the enbable switch not the UI. For debug#
+# OR the Stab Selector Switchs OR.4 OR.5 OR.6 amd make them Toggles
+net Left_Normal_Axis_0_Switch  => or2.4.in0                 # Console Axis Switch Left
+net GUI_Pan_Stab_Button        => or2.4.in1                 # Gui toggle button    
+net Combined_Pan_Stab_Switch   <= or2.4.out                 # Combined Stab Switch
+net Combined_Pan_Stab_Switch   => toggle.0.in 
+net Axis_0_Stab_select 		   <= toggle.0.out  			# Stab select for Axis 0 (Pan)
+
+net Left_Normal_Axis_1_Switch   => or2.5.in0
+net GUI_Roll_Stab_Button        => or2.5.in1
+net Combined_Roll_Stab_Switch   <= or2.5.out
+net Combined_Roll_Stab_Switch   => toggle.1.in 
+net Axis_1_Stab_select 		    <= toggle.1.out  			# Stab select for Axis 1 (Roll)
+
+net Left_Normal_Axis_2_Switch   => or2.6.in0
+net GUI_Tilt_Stab_Button        => or2.6.in1
+net Combined_Tilt_Stab_Switch   <= or2.6.out
+net Combined_Tilt_Stab_Switch   => toggle.2.in 
+net Axis_2_Stab_select 		    <= toggle.2.out  			# Stab select for Axis 2 (Tilt)
+
+# OR the Horizon  Selector Switches  OR.7 OR.8 OR.9 and make them Toggles
+net Rt_Normal_Axis_0_Switch        => or2.7.in0
+net GUI_Pan_Horizon_Button          => or2.7.in1
+net Combined_Pan_Horizon_Switch    <= or2.7.out
+net Combined_Pan_Horizon_Switch    => toggle.6.in 
+net Axis_0_Horizon_select 		   <= toggle.6.out  			 # Horizon select for Axis 0 (Pan)
+
+net Rt_Normal_Axis_1_Switch        => or2.8.in0
+net GUI_Roll_Horizon_Button         => or2.8.in1
+net Combined_Roll_Horizon_Switch   <= or2.8.out
+net Combined_Roll_Horizon_Switch   => toggle.7.in 
+net Axis_1_Horizon_select 		   <= toggle.7.out  		 # Horizon select for Axis 1 (Roll)
+
+net Rt_Normal_Axis_2_Switch        => or2.9.in0
+net GUI_Tilt_Horizon_Button          => or2.9.in1
+net Combined_Tilt_Horizon_Switch    <= or2.9.out
+net Combined_Tilt_Horizon_Switch    => toggle.8.in 
+net Axis_2_Horizon_select 		   <= toggle.8.out  			 # Horizon select for Axis 2 (Tilt)
+
+# Joystick 1 Nets JS1 will run TILT initially
+# JS1, Pot1, Pot 3 Parameter Settings
+#setp bodnar-USB-generic0.0.Pot1-Scale  0.002443792766373 	# Scale Factor to make test motor go full speed (was 0.35)
+#setp bodnar-USB-generic0.0.Pot1-Offset 0.0
+
+#setp bodnar-USB-generic0.0.Pot3-Scale  0.00000146		# Scale Factor for Pot3  Damping Gain pot
+#setp bodnar-USB-generic0.0.Pot3-Offset 0.0001			# Offset of Pot3 to make zero be the bottom
+
+#setp bodnar-USB-generic0.0.JS1-Scale  1005			# Scale Factor to make test motor go full speed
+#setp bodnar-USB-generic0.0.JS1-ScaledMin -1005			# Limit of Negative Velocity JS command is clamped at this regardless of scale values
+#setp bodnar-USB-generic0.0.JS1-ScaledMax  1005			# Limit of Positive Velocity
+#setp bodnar-USB-generic0.0.JS1-MaxAccel 5			# Sets Max rate of change of joystick. Used to control stick 'snap' 
+#setp bodnar-USB-generic0.0.JS1-Min 0				# Minimun of JS1 counts range   These are used to calculate direction of the stick 
+#setp bodnar-USB-generic0.0.JS1-Mid 2045				# Center of JS1 count range 
+#setp bodnar-USB-generic0.0.JS1-Max 4092				# Maximum of JS1 count range
+#setp bodnar-USB-generic0.0.JS1-Feather 1.3			# Sets exponential Feathering for axis
+
+setp deadzone.0.center 0					# Center Position of JoyStick
+setp deadzone.0.threshhold 10			       		# Set the threshhold counts  This is the absolute range ie +/- 5 counts = 10 
+
+# JS1 Nets
+net Left_Shift_Axis_2_Switch  bodnar-USB-generic0.0.JS1-Dir 	# Sets Axis Direction
+
+net JS1_Cmd_float <= bodnar-USB-generic0.0.JS1-Cmd		# Get JS1 Command info
+net JS1_Raw       <= bodnar-USB-generic0.0.JS1-Raw          # Net Raw data for GUI display
+net JS1_Sens_float <= bodnar-USB-generic0.0.Pot1   	    	# Get JS1 sensitivity pot
+
+net JS1_Damping_float <= bodnar-USB-generic0.0.Pot3    		# Get JS1 damping pot
+#net JS1_Damping_Switch <= bodnar-USB-generic0.0.SW11     	# Use Sw11 as damping on off for testing
+
+net JS1_Cmd_float => deadzone.0.in				# Send Command input to Deadzone function
+net JS1_Cmd_Dead_float <= deadzone.0.out			# Take JS1 command out from deadzone function
+
+net JS1_Sens_float => scale.0.gain				# Use pre scaled Pot1 value for command scaling
+net JS1_Cmd_Dead_float => scale.0.in				# Take JS1 Command for scaling	
+net JS1_Cmd_Scaled_Dead_float <= scale.0.out			# Output scaled JS1 commnand
+
+net JS1_Cmd_Scaled_Dead_float => lowpass.0.in			# Send scaled JS1 signal to Low pass for damping
+net JS1_Damping_float  => lowpass.0.gain			# Send the pre scaled Pot2 Value to be gain of the lowpass filter
+#net JS1_Damping_Switch => lowpass.0.load			# Make switch 1 Right toggle damping function for testing
+setp lowpass.0.load 1
+net JS1_Operator_Output_float <= lowpass.0.out 	  		# Take output of lowpass damping fuction
+
+# Joystick 2 Nets JS2 will run PAN initially
+# JS2 Pot1 Sensitivity Nets
+setp bodnar-USB-generic0.0.Pot2-Scale  0.002443792766373 	# Sets Scaling factor of sensitiviy pot to give 0 - 10 out as a float
+setp bodnar-USB-generic0.0.Pot2-Offset 0			# Sensitivity Pot for Pan Offset value
+setp bodnar-USB-generic0.0.Pot4-Scale  0.00000146		# Scale Factor for Pot4  Damping Gain pot
+setp bodnar-USB-generic0.0.Pot4-Offset 0.0001			# Offset of Pot4 to make zero be the bottom
+setp bodnar-USB-generic0.0.JS2-Scale  1005			# Scale Factor to make test motor go full speed
+setp bodnar-USB-generic0.0.JS2-ScaledMin -1005 			# Limit of Negative Velocity
+setp bodnar-USB-generic0.0.JS2-ScaledMax  1005			# Limit of Positive Velocity
+setp bodnar-USB-generic0.0.JS2-MaxAccel 5			# Sets Max rate of change of joystick. Used to control stick 'snap' 
+setp bodnar-USB-generic0.0.JS2-Min	0			# Minimun of JS2 counts range   These are used to calculate direction of the stick 
+setp bodnar-USB-generic0.0.JS2-Mid      2045			# Center of JS2 count range 
+setp bodnar-USB-generic0.0.JS2-Max	4092			# Maximum of JS2 count range
+setp bodnar-USB-generic0.0.JS2-Feather 1.3			# Sets exponential Feathering for axis
+
+setp deadzone.1.center 0				# Center Position of JoyStick
+setp deadzone.1.threshhold 10			        # Set the threshhold counts 
+
+#### JS2 Nets ####
+
+net Left_Shift_Axis_0_Switch bodnar-USB-generic0.0.JS2-Dir 	# Sets Axis Direction
+
+net JS2_Cmd_float <= bodnar-USB-generic0.0.JS2-Cmd		# Get JS2 Value
+net JS2_Raw       <= bodnar-USB-generic0.0.JS2-Raw      # Net Raw data for GUI display
+net JS2_Sens_float <= bodnar-USB-generic0.0.Pot2		# Get JS2 Sensitivity Pot
+
+net JS2_Damping_float <= bodnar-USB-generic0.0.Pot4     	# Get JS2 damping gain  pot
+#net JS2_Damping_Switch <= bodnar-USB-generic0.0.SW11     	# Use Sw11 as damping on off for testing
+
+net JS2_Cmd_float => deadzone.1.in
+net JS2_Cmd_Dead_float <= deadzone.1.out
+
+net JS2_Sens_float => scale.1.gain				# Use pre scaled Pot1 vlaue for command scaling
+net JS2_Cmd_Dead_float => scale.1.in				# Take JS1 Command for scaling	
+net JS2_Cmd_Scaled_Dead_float <= scale.1.out			# Output scaled JS1 commnand
+
+net JS2_Cmd_Scaled_Dead_float => lowpass.1.in			# Send scaled JS2 signal to Low pass for damping
+net JS2_Damping_float  => lowpass.1.gain			# Send the pre scaled Pot4 Value to be gain of the lowpass filter
+#net JS2_Damping_Switch => lowpass.1.load			# Make switch 1 Right toggle damping function for testing
+setp lowpass.1.load 1
+net JS2_Operator_Output_float <= lowpass.1.out   		# Take output of lowpass damping fuction
+
+# Joystick 3 Nets JS3 will Run ROLL initially
+# JS3 Pot1 Sensitivity Nets
+setp bodnar-USB-generic1.0.Pot2-Scale  0.002443792766373	# Sensitivity pot scale factor to make Roll motor go full speed 
+setp bodnar-USB-generic1.0.Pot2-Offset 0             		# Sensitivity Pot Offset value
+
+setp bodnar-USB-generic1.0.Pot1-Scale  0.000002			# Scale Factor for Pot3  Damping Gain pot
+setp bodnar-USB-generic1.0.Pot1-Offset 0.0001			# Offset of Pot3 to make zero be the bottom
+
+setp bodnar-USB-generic1.0.JS1-Scale  1007.5			# JS3 Command  Scale Factor to make test motor go full speed
+setp bodnar-USB-generic1.0.JS1-MaxAccel 5			# Sets Max rate of change of joystick. Used to control stick 'snap'
+setp bodnar-USB-generic1.0.JS1-ScaledMin -1007.5		# Limit of Neg Velocity
+setp bodnar-USB-generic1.0.JS1-ScaledMax 1007.5			# Limit of Positive Velocity	
+setp bodnar-USB-generic1.0.JS1-Min 0				# Minimum of JS3 count range These are used to detect axis direction
+setp bodnar-USB-generic1.0.JS1-Mid 2045				# Center of JS3 count range
+setp bodnar-USB-generic1.0.JS1-Max 4092				# Maximum of JS3 count range
+setp bodnar-USB-generic1.0.JS1-Feather 1.3			# Sets exponential Feathering for axis
+
+setp deadzone.2.center 0				 	# Center Position of JoyStick3
+setp deadzone.2.threshhold 15			         	# Set the threshhold counts (scaled Correctly?)
+
+# JS3 Nets
+net Left_Shift_Axis_1_Switch bodnar-USB-generic1.0.JS1-Dir 	# Sets Axis Direction
+
+net JS3_Cmd_float <= bodnar-USB-generic1.0.JS1-Cmd		# JS3 is first JS on second Bodnar module
+net JS3_Raw       <= bodnar-USB-generic1.0.JS1-Raw      # Net Raw data for GUI display
+net JS3_Sens_float <= bodnar-USB-generic1.0.Pot2		# JS3 Sensitivity is Pot 2 on Second Bodnar Module 
+
+net JS3_Damping_float <= bodnar-USB-generic1.0.Pot1		# JS3 Damping is Pot 1 on Second Bodnar Module 
+#net JS3_Damping_Switch <= bodnar-USB-generic1.0.SW11   	# Use Sw11 as damping on off for testing
+
+net JS3_Cmd_float => deadzone.2.in
+net JS3_Cmd_Dead_float = deadzone.2.out
+
+net JS3_Sens_float => scale.2.gain				# Use pre scaled Pot1 vlaue for command scaling
+net JS3_Cmd_Dead_float => scale.2.in				# Take JS3 Command for scaling	
+net JS3_Cmd_Scaled_Dead_float <= scale.2.out			# Output scaled JS1 commnand
+
+net JS3_Cmd_Scaled_Dead_float => lowpass.2.in			# Send scaled JS3 signal to Low pass for damping
+net JS3_Damping_float  => lowpass.2.gain			# Send the pre scaled Pot1 Value to be gain of the lowpass filter
+#net JS3_Damping_Switch => lowpass.2.load			# Make switch 1 Right toggle damping function for testing
+setp lowpass.2.load 1				
+net JS3_Operator_Output_float <= lowpass.2.out   	# Take output of lowpass damping fuction
+
+# Unassigned Console control Nets (mainly for UI)
+net Pot13_Cmd_float  bodnar-USB-generic1.0.Pot3
+net Pot14_Cmd_float  bodnar-USB-generic1.0.Pot4
+# pot 5 not present (used for zoom)
+net Pot16_Cmd_float  bodnar-USB-generic1.0.Pot6
+
+# Wheels Nets
+# Pan EtherCat Wheel
+# First get raw wheel data from lcec. Lcec first wheel slave is designated PAN
+net sig_miso_wheel_position_0    wheel.0.miso-wheel-position    <= lcec.0.0.miso_wheel_position
+net sig_miso_wheel_sensitivity_0 wheel.0.miso-wheel-sensitivity <= lcec.0.0.miso_wheel_sensitivity
+net sig_miso_wheel_switches_0    wheel.0.miso-wheel-switches    <= lcec.0.0.miso_wheel_switches
+net sig_miso_wheel_counter_0     wheel.0.miso-wheel-counter     <= lcec.0.0.miso_wheel_counter
+
+net Pan_Wheel_Vel <= wheel.0.velocity
+net Pan_Wheel_Sens <= wheel.0.sensitivity
+net Pan_Wheel_Pos <= wheel.0.position
+
+net Pan_Wheel_Dir <= wheel.0.dir-off-fwd-rev
+net Roll_Wheel_Dir <= wheel.2.dir-off-fwd-rev
+net Tilt_Wheel_Dir <= wheel.1.dir-off-fwd-rev
+
+
+
+# Pan Wheel Scaling
+net Pan_Wheel_Sens => scale.9.gain		# Scale Velocity command with speed pot
+net Pan_Wheel_Vel  => scale.9.in
+net Pan_Wheel_Vel_Scaled <= scale.9.out
+
+setp scale.12.gain 5000	# Scale by fixed amount so output matches JS output
+net  Pan_Wheel_Vel_Scaled => scale.12.in  
+net  Pan_Wheel_Vel_Scaled_Matched <= scale.12.out
+
+# Pan Wheel Dampening
+net Pan_Wheel_Vel_Scaled_Matched => lowpass.20.in			# Send scaled Pan Wheel signal to Low pass for damping
+net JS2_Damping_float  => lowpass.20.gain			# Send the pre scaled Pot1 on JS Console (For Now) Value to be gain of the lowpass filter
+#net JS2_Damping_Switch => lowpass.20.load			# (Not used) Make switch 1 Right toggle damping function for testing
+setp lowpass.20.load 1						        # Force Damping Off = 1 / On = 0
+net Pan_Wheel_Operator_Output_float <= lowpass.20.out     	# Take output of lowpass damping fuction
+
+## Tilt Ethercat Wheel
+# First get raw wheel data from lcec. Lcec second wheel slave is designated TILT
+net sig_miso_wheel_position_1    wheel.1.miso-wheel-position    <= lcec.0.1.miso_wheel_position
+net sig_miso_wheel_sensitivity_1 wheel.1.miso-wheel-sensitivity <= lcec.0.1.miso_wheel_sensitivity
+net sig_miso_wheel_switches_1    wheel.1.miso-wheel-switches    <= lcec.0.1.miso_wheel_switches
+net sig_miso_wheel_counter_1     wheel.1.miso-wheel-counter     <= lcec.0.1.miso_wheel_counter
+net Tilt_Wheel_Vel <= wheel.1.velocity
+net Tilt_Wheel_Sens <= wheel.1.sensitivity
+net Tilt_Wheel_Pos <= wheel.1.position
+
+# Tilt Wheel Scaling
+net Tilt_Wheel_Sens => scale.11.gain		# Scale Velocity command with speed pot
+net Tilt_Wheel_Vel  => scale.11.in
+net Tilt_Wheel_Vel_Scaled <= scale.11.out
+
+setp scale.14.gain 10000	# Scale by fixed amount so output matches JS output
+net  Tilt_Wheel_Vel_Scaled => scale.14.in  
+net  Tilt_Wheel_Vel_Scaled_Matched <= scale.14.out
+
+# Tilt Wheel Dampening
+net Tilt_Wheel_Vel_Scaled_Matched => lowpass.22.in			# Send scaled Tilt Wheel signal to Low pass for damping
+net JS2_Damping_float  => lowpass.22.gain			# Send the pre scaled Pot1 on JS Console (For Now) Value to be gain of the lowpass filter
+#net JS2_Damping_Switch => lowpass.22.load			# (Not used) Make switch 1 Right toggle damping function for testing
+setp lowpass.22.load 1						# Force Damping Off = 1 / on = 0
+net Tilt_Wheel_Operator_Output_float <= lowpass.22.out     	# Take output of lowpass damping fuction
+
+# Roll Ethercat Wheel
+# First get raw wheel data from lcec. Lcec third wheel slave is designated ROLL
+net sig_miso_wheel_position_2    wheel.2.miso-wheel-position    <= lcec.0.2.miso_wheel_position
+net sig_miso_wheel_sensitivity_2 wheel.2.miso-wheel-sensitivity <= lcec.0.2.miso_wheel_sensitivity
+net sig_miso_wheel_switches_2    wheel.2.miso-wheel-switches    <= lcec.0.2.miso_wheel_switches
+net sig_miso_wheel_counter_2     wheel.2.miso-wheel-counter     <= lcec.0.2.miso_wheel_counter
+
+net Roll_Wheel_Vel <= wheel.2.velocity
+net Roll_Wheel_Sens <= wheel.2.sensitivity
+net Roll_Wheel_Pos <= wheel.2.position
+
+# Roll Wheel Scaling
+net Roll_Wheel_Sens => scale.10.gain		# Scale Velocity command with speed pot
+net Roll_Wheel_Vel  => scale.10.in
+net Roll_Wheel_Vel_Scaled <= scale.10.out
+
+setp scale.13.gain 1000			# Scale by fixed amount so output matches JS output
+net  Roll_Wheel_Vel_Scaled => scale.13.in  
+net  Roll_Wheel_Vel_Scaled_Matched <= scale.13.out
+
+# Roll Wheel Dampening
+net Roll_Wheel_Vel_Scaled_Matched => lowpass.21.in			# Send scaled Roll Wheel signal to Low pass for damping
+net JS2_Damping_float  => lowpass.21.gain			# Send the pre scaled Pot1 on JS Console (For Now) Value to be gain of the lowpass filter
+#net JS2_Damping_Switch => lowpass.21.load			# (Not used) Make switch 1 Right toggle damping function for testing
+setp lowpass.21.load 1						# Force Damping Off =1 /  On = 0
+net Roll_Wheel_Operator_Output_float <= lowpass.21.out     	# Take output of lowpass damping fuction
+
+### Multiplex Wheel or JS as Command Output
+net JS2_Operator_Output_float 			=> mux2.11.in0 
+net Pan_Wheel_Operator_Output_float		=> mux2.11.in1
+#net Pan_Command_Select    			    => mux2.11.sel            # hard wire ecat wheels only
+setp mux2.11.sel 1
+net Operator_Output_Pan_float           <= mux2.11.out
+
+net JS3_Operator_Output_float 			=> mux2.12.in0 
+net Roll_Wheel_Operator_Output_float	=> mux2.12.in1
+#net Roll_Command_Select    			    => mux2.12.sel        # hard wire ecat wheels only
+setp mux2.12.sel 1
+net Operator_Output_Roll_float			<= mux2.12.out
+
+net JS1_Operator_Output_float 			=> mux2.13.in0 
+net Tilt_Wheel_Operator_Output_float	=> mux2.13.in1
+#net Tilt_Command_Select    			    => mux2.13.sel       # hard wire ecat wheels only
+setp mux2.13.sel 1
+net Operator_Output_Tilt_float			<= mux2.13.out
+
+# Horion Section  ## Set up Auto Horizon Component and PID 
+
+net Axis_0_Horizon_select => horizon.0.SetTarget
+net Axis_1_Horizon_select => horizon.1.SetTarget
+net Axis_2_Horizon_select => horizon.2.SetTarget
+
+# Horizon Scale Factor
+
+setp horizon.0.StepScale 10000
+setp horizon.1.StepScale 10000
+setp horizon.2.StepScale 80000
+
+setp horizon.0.MaxVel 10000
+setp horizon.1.MaxVel 10000
+setp horizon.2.MaxVel 10000
+
+setp horizon.0.MaxAccel 10
+setp horizon.1.MaxAccel 10
+setp horizon.2.MaxAccel 10
+
+# Horizon Gyro inputs
+# Camera Gyro Angluar data in degrees
+net Axis_0_Horizon_Gyro lcec.0.6.Pan_1  horizon.0.axisGyro
+net Axis_1_Horizon_Gyro lcec.0.6.Roll_1 horizon.1.axisGyro
+net Axis_2_Horizon_Gyro lcec.0.6.Tilt_1 horizon.2.axisGyro
+
+# Horizon Operator Command input
+# Operator Command as a Velocity Command.
+net JS2_Operator_Output_float horizon.0.axisVel # Pan
+net JS3_Operator_Output_float horizon.1.axisVel # Roll
+net JS1_Operator_Output_float horizon.2.axisVel # Tilt
+
+# Horizon Output 
+# Horizon Component converts a Velocity Command (operator) to an angular Position  
+net Axis_0_Horizon_Command_float horizon.0.TargetOut 
+net Axis_1_Horizon_Command_float horizon.1.TargetOut 
+net Axis_2_Horizon_Command_float horizon.2.TargetOut 
+
+# Horizon Active Output Signals linked to GUI to indicate
+net Horizon_Pan_Active  <= horizon.0.setFlag
+net Horizon_Roll_Active <= horizon.1.setFlag
+net Horizon_Tilt_Active <= horizon.2.setFlag
+
+# Horizon PID loop
+setp pid.3.enable 1						# Enable PID loops
+setp pid.4.enable 1
+setp pid.5.enable 1
+
+net Axis_0_Horizon_Gyro => pid.3.feedback		# send Scaled Angular rate into PID as feedback
+net Axis_1_Horizon_Gyro => pid.4.feedback		# send Scaled Angular rate into PID as feedback
+net Axis_2_Horizon_Gyro => pid.5.feedback		# send Scaled Angular rate into PID as feedback
+
+net Axis_0_Horizon_Command_float => pid.3.command		# send Scaled JS 2 Operator Command Out as PID command for Axis 0 (Pan)
+net Axis_1_Horizon_Command_float => pid.4.command		# send Scaled JS 3 Operator Command Out as PID command for Axis 1 (Roll)
+net Axis_2_Horizon_Command_float => pid.5.command		# send Scaled JS 1 Operator Command Out as PID command for Axis 2 (Tilt)
+
+net Axis_0_Horizon_Output_float <= pid.3.output			# send the pid output to the Output seletion
+net Axis_1_Horizon_Output_float <= pid.4.output			# send the pid output to the Output seletion
+net Axis_2_Horizon_Output_float <= pid.5.output			# send the pid output to the Output seletion
+
+# Horizon Output Scaling
+#setp mult2.0.in0 -60						# Multiply Output Signal by -1 to make its direction better
+#net Axis_0_Stab_Output_Rev_float => mult2.0.in1			# And an extra scaling factor...?
+#net Axis_0_Stab_Output_float <= mult2.0.out
+
+#setp mult2.1.in0 220						# Multiply Output Signal by -1 to make its direction better
+#net Axis_1_Stab_Output_Rev_float => mult2.1.in1			# And an extra scaling factor...?
+#net Axis_1_Stab_Output_float <= mult2.1.out
+
+#setp mult2.2.in0 200						# Multiply Output Signal by -1 to make its direction better
+#net Axis_2_Stab_Output_Rev_float => mult2.2.in1			# And an extra scaling factor...?
+#net Axis_2_Stab_Output_float <= mult2.2.out
+
+setp pid.3.deadband 5
+setp pid.4.deadband 5
+setp pid.5.deadband 5
+
+setp pid.3.maxoutput 0
+setp pid.4.maxoutput 0
+setp pid.5.maxoutput 0
+
+setp pid.3.maxerror 0
+setp pid.4.maxerror 0
+setp pid.5.maxerror 0
+
+setp pid.3.maxerrorD 0
+setp pid.4.maxerrorD 0
+setp pid.5.maxerrorD 0
+
+setp pid.3.maxerrorI 0
+setp pid.4.maxerrorI 0
+setp pid.5.maxerrorI 0
+
+setp pid.3.maxcmdD 0
+setp pid.4.maxcmdD 0
+setp pid.5.maxcmdD 0
+
+setp pid.3.maxcmdDD 0
+setp pid.4.maxcmdDD 0
+setp pid.5.maxcmdDD 0
+
+#Axis 0 Gains
+setp pid.3.Pgain 1
+setp pid.3.Igain 0             
+setp pid.3.Dgain 1
+
+setp pid.3.FF0 0
+setp pid.3.FF1 0
+setp pid.3.FF2 0
+
+#Axis 1 Gains
+setp pid.4.Pgain 1
+setp pid.4.Igain 0
+setp pid.4.Dgain 1
+
+setp pid.4.FF0 0
+setp pid.4.FF1 0
+setp pid.4.FF2 0
+
+#Axis 2 Gains
+setp pid.5.Pgain 1
+setp pid.5.Igain 0
+setp pid.5.Dgain 1
+
+setp pid.5.FF0 0
+setp pid.5.FF1 0
+setp pid.5.FF2 0
+
+# STAB_SECTION    ###  Set up PIDs and gyro feedback for stabiliation 
+# Scale Operator Command   Comes as +/- 10000
+setp scale.6.gain 1					# Scale factor to scale Operator Command to a value suited to the stab input
+net JS1_Operator_Output_float => scale.6.in			
+net JS1_Operator_Output_Stab_float <= scale.6.out		
+
+setp scale.7.gain 1					# Scale factor to scale Operator Command to a value suited to the stab input
+net JS2_Operator_Output_float => scale.7.in			
+net JS2_Operator_Output_Stab_float <= scale.7.out		
+
+setp scale.8.gain 1					# Scale factor to scale Operator Command to a value suited to the stab input
+net JS3_Operator_Output_float => scale.8.in			
+net JS3_Operator_Output_Stab_float <= scale.8.out		
+
+# Scale Gyro data
+# These three lines get gyros from the Mesa Card direct
+#net Axis_0_Ang_Rate_cam_rad_s <= hm2_5i25.0.pktuart.1.angZ    	# Get the Gyro Data for angular rate of Z axis from the Camera Gyro Sensor. This is the pan rate
+#net Axis_1_Ang_Rate_cam_rad_s <= hm2_5i25.0.pktuart.1.angX    	# Get the Gyro Data for angular rate of Y axis from the Camera Gyro Sensor  This is the roll rate
+#net Axis_2_Ang_Rate_cam_rad_s <= hm2_5i25.0.pktuart.1.angY    	# Get the Gyro Data for angular rate of X axis from the Camera Gyro Sensor  This is the tilt rate 
+ 
+# These three lines get gyros from across the network from the IO slave
+net Axis_0_Ang_Rate_cam_rad_s <= lcec.0.6.angZ1    	# Get the Gyro Data for angular rate of Z axis from the Camera Gyro Sensor (1) . This is the pan rate
+net Axis_1_Ang_Rate_cam_rad_s <= lcec.0.6.angX1    	# Get the Gyro Data for angular rate of X axis from the Camera Gyro Sensor (1).  This is the roll rate
+net Axis_2_Ang_Rate_cam_rad_s <= lcec.0.6.angY1    	# Get the Gyro Data for angular rate of Y axis from the Camera Gyro Sensor (1).  This is the tilt rate 
+
+setp scale.3.gain 5000					# Scale factor to convert from Camera Radian/sec to ???
+net Axis_0_Ang_Rate_cam_rad_s => scale.3.in			# Apply Conversion to Axis one angular velocity	
+net Axis_0_Ang_Rate_Stab <= scale.3.out				# Output scaled Axis 0 (PAN) command
+
+setp scale.4.gain 5000					# Scale factor to convert from Camera Radian/sec to ???
+net Axis_1_Ang_Rate_cam_rad_s => scale.4.in			# Apply Conversion to Axis one angular velocity	
+net Axis_1_Ang_Rate_Stab <= scale.4.out				# Output scaled Axis 1 (roll) command
+
+setp scale.5.gain 5000						# Scale factor to convert from Camera Radian/sec to ???
+net Axis_2_Ang_Rate_cam_rad_s => scale.5.in			# Apply Conversion to Axis one angular velocity	
+net Axis_2_Ang_Rate_Stab <= scale.5.out				# Output scaled Axis 1 (Tilt) command
+
+# Stab Nets
+setp pid.0.enable 1					            	# Enable PID loops
+setp pid.1.enable 1
+setp pid.2.enable 1
+
+net Axis_0_Ang_Rate_Stab => pid.0.feedback		# send Scaled Angular rate into PID as feedback
+net Axis_1_Ang_Rate_Stab => pid.1.feedback		# send Scaled Angular rate into PID as feedback
+net Axis_2_Ang_Rate_Stab => pid.2.feedback		# send Scaled Angular rate into PID as feedback
+
+net JS2_Operator_Output_Stab_float => pid.0.command		# send Scaled JS 2 Operator Command Out as PID command for Axis 0 (Pan)
+net JS3_Operator_Output_Stab_float => pid.1.command		# send Scaled JS 3 Operator Command Out as PID command for Axis 1 (Roll)
+net JS1_Operator_Output_Stab_float => pid.2.command		# send Scaled JS 1 Operator Command Out as PID command for Axis 2 (Tilt)
+
+net Axis_0_Stab_Output_Rev_float <= pid.0.output			# send the pid output to the Output seletion
+net Axis_1_Stab_Output_Rev_float <= pid.1.output			# send the pid output to the Output seletion
+net Axis_2_Stab_Output_Rev_float <= pid.2.output			# send the pid output to the Output seletion
+
+# Scale output of stabs to fit. Ideally it is +/- 10000 this is mainly to reverse the signals
+setp mult2.0.in0 -1						# Multiply Output Signal by -1 to make its direction better
+net Axis_0_Stab_Output_Rev_float => mult2.0.in1			# And an extra scaling factor...?
+net Axis_0_Stab_Output_float <= mult2.0.out
+
+setp mult2.1.in0 0.1						# Multiply Output Signal by -1 to make its direction better
+net Axis_1_Stab_Output_Rev_float => mult2.1.in1			# And an extra scaling factor...?
+net Axis_1_Stab_Output_float <= mult2.1.out
+
+setp mult2.2.in0 2						# Multiply Output Signal by -1 to make its direction better
+net Axis_2_Stab_Output_Rev_float => mult2.2.in1			# And an extra scaling factor...?
+net Axis_2_Stab_Output_float <= mult2.2.out
+
+# PID Gains and params
+setp pid.0.deadband 5
+setp pid.1.deadband 5
+setp pid.2.deadband 5
+
+setp pid.0.maxoutput 0
+setp pid.1.maxoutput 0
+setp pid.2.maxoutput 0
+
+setp pid.0.maxerror 0
+setp pid.1.maxerror 0
+setp pid.2.maxerror 0
+
+setp pid.0.maxerrorD 0
+setp pid.1.maxerrorD 0
+setp pid.2.maxerrorD 0
+
+setp pid.0.maxerrorI 0
+setp pid.1.maxerrorI 0
+setp pid.2.maxerrorI 0
+
+setp pid.0.maxcmdD 0
+setp pid.1.maxcmdD 0
+setp pid.2.maxcmdD 0
+setp pid.0.maxcmdDD 0
+setp pid.1.maxcmdDD 0
+setp pid.2.maxcmdDD 0
+
+#Axis 0 Gains
+setp pid.0.Pgain 1
+setp pid.0.Igain 0
+setp pid.0.Dgain 1
+
+setp pid.0.FF0 0
+setp pid.0.FF1 0
+setp pid.0.FF2 0
+
+#Axis 1 Gains
+setp pid.1.Pgain 1
+setp pid.1.Igain 0
+setp pid.1.Dgain 1
+
+setp pid.1.FF0 0
+setp pid.1.FF1 0
+setp pid.1.FF2 0
+
+#Axis 2 Gains
+setp pid.2.Pgain 1
+setp pid.2.Igain 0
+setp pid.2.Dgain 1
+
+setp pid.2.FF0 0
+setp pid.2.FF1 0
+setp pid.2.FF2 0
+
+# Select Outputs to Motors
+#  AXIS 0 PAN
+# Multiplex all possible output sources
+# Starts with Operator Command from wheel or JS
+# Multiplex Horizon or not
+net Operator_Output_Pan_float 			=> mux2.0.in0 
+net Axis_0_Horizon_Output_float			=> mux2.0.in1
+net Axis_0_Horizon_select     			=> mux2.0.sel
+net Axis_0_CMD_Live_or_Horizon_Output_float		<= mux2.0.out
+
+# Multiplex that with Stabs or not
+net Axis_0_CMD_Live_or_Horizon_Output_float 	=> mux2.1.in0 
+net Axis_0_Stab_Output_float			=> mux2.1.in1
+net Axis_0_Stab_select     			=> mux2.1.sel
+net Axis_0_CMD_Live_or_Stab_Output_float		<= mux2.1.out
+
+# Multiplex with Tuning Tool
+net Axis_0_CMD_Live_or_Stab_Output_float		=> mux2.2.in0
+net Sig_Out_float 				=> mux2.2.in1
+net Axis_0_Tuning_select			=> mux2.2.sel
+net Axis_0_CMD_final_Output_float			<= mux2.2.out
+
+# Convert final Output to s32
+net Axis_0_CMD_final_Output_float => conv_float_s32.0.in
+net Axis_0_CMD_final_s32 <= conv_float_s32.0.out
+
+# AXIS 0 Backlash compensation and balancing
+#net jacobian_Homed =>  backlash-8.0.enable					# Home Active Bit is inverted. Low when homing to disable Velocity offsets and backlash while homing
+setp  backlash-8.0.enable 1									# Force Bashlash comp on (1) or off (0)
+
+#Torque Signal Filtering
+# A axis Actual Torque
+net Axis_0_Torque_In_s32 lcec.0.3.Torque_Demand_Axis_A_IN conv_s32_float.4.in
+net Axis_0_Torque_In_float conv_s32_float.4.out lowpass.7.in
+setp lowpass.7.gain 0.001
+setp lowpass.7.load 1
+net Axis_0_Target_Torque_Axis_A_Inv lowpass.7.out conv_float_s32.8.in
+net Axis_0_Filtered_Target_Torque_A_s32 conv_float_s32.8.out  backlash-8.0.ActualTorque-A		# Send A actual filtered torque to backlash
+
+## B axis Actual Torque
+net Axis_0_Torque_B_In_s32 lcec.0.3.Torque_Actual_Axis_B_IN conv_s32_float.5.in
+net Axis_0_Torque_B_In_float conv_s32_float.5.out lowpass.8.in
+setp lowpass.8.gain 0.001
+setp lowpass.8.load 1
+net Axis_0_Actual_Torque_Axis_B lowpass.8.out conv_float_s32.9.in
+#net Axis_0_Filtered_Actual_Torque_B_s32 conv_float_s32.9.out  backlash-8.0.ActualTorque-B		# Send B actual filtered torque to backlash comp
+
+# A axis Actual Velocity
+net Axis_0_Velocity_A_In_s32 lcec.0.3.Velocity_Actual_Axis_A_IN conv_s32_float.7.in
+net Axis_0_Velocity_A_In_float conv_s32_float.7.out lowpass.16.in
+setp lowpass.16.gain 0.01
+setp lowpass.16.load 0
+net Axis_0_Actual_Velocity_Axis_A lowpass.16.out conv_float_s32.10.in
+net Axis_0_Filtered_Actual_Velocity_A_s32 conv_float_s32.10.out  backlash-8.0.ActVelA		# Send A actual filtered Velocity to backlash 
+
+net Axis_0_TorqueOffsetA_Actual <= lcec.0.3.Torque_Offset_Axis_A_IN 					# Get the actual torque offset.
+net Axis_0_TorqueOffsetA_Actual => backlash-8.0.TorqueOffsetActA
+
+net Axis_0_TorqueOffsetB_Actual <= lcec.0.3.Torque_Offset_Axis_B_IN 					# Get the actual torque offset.
+net Axis_0_TorqueOffsetB_Actual => backlash-8.0.TorqueOffsetActB
+
+#setp  backlash-8.0.accelThreshold 30000								# not used
+#setp  backlash-8.0.velThreshold 200								# Velocity threshold that causes BL to kick in. IF actual Velocity of Axis A is greater then this threshold, no backlash comp is active 
+setp  backlash-8.0.torqueThreshold 5								# Torque threshold that causes BL to kick in. IF actual filtered torque of Axis A is greater then this threshold, no backlash comp is active 
+setp  backlash-8.0.BacklashTorque 2								# Set this as backalsh stiffness
+setp  backlash-8.0.RampRate 0.01									# Amount position is adjusted each interation.....
+setp  backlash-8.0.StepSize 1
+#setp  backlash-8.0.maxOffset 100
+#setp  backlash-8.0.offsetDelay 1								
+#setp  backlash-8.0.AccelFilterGain 0.003							# gain for internal low pass filter of derived Accel value. Not currently used										  
+#setp  backlash-8.0.TorqueWindow 0.15								# % of actual torque a to stop ramping.. 0.05 = 5%
+										  
+net Axis_0_Output_Torque_B <= backlash-8.0.TargetTorque-B				            # Send the new offset out to the amp Axis B
+net Axis_0_Output_Torque_B => lcec.0.3.Torque_Target_Axis_B_OUT
+
+net Axis_0_Output_Torque_Offset_A <= backlash-8.0.TargetOffsetTorque-A				# Send the new offset out to the amp Axis B
+net Axis_0_Output_Torque_Offset_A => lcec.0.3.Torque_Offset_Axis_A_OUT				# Sent it to the torque word				
+
+net Axis_0_Output_Torque_Offset_B <= backlash-8.0.TargetOffsetTorque-B				# Send the new offset out to the amp Axis B
+net Axis_0_Output_Torque_Offset_B => lcec.0.3.Torque_Offset_Axis_B_OUT				# Sent it to the torque word				
+
+#  AXIS 1 ROLL
+# Multiplex all possible outut sources
+# Multiplex Horizon or Joystick
+net Operator_Output_Roll_float 			=> mux2.3.in0 
+net Axis_1_Horizon_Output_float			=> mux2.3.in1
+net Axis_1_Horizon_select     			=> mux2.3.sel
+net Axis_1_CMD_Live_or_Horizon_Output_float		<= mux2.3.out
+
+# Multiplex that with Stabs or not
+net Axis_1_CMD_Live_or_Horizon_Output_float 	=> mux2.4.in0 
+net Axis_1_Stab_Output_float			=> mux2.4.in1
+net Axis_1_Stab_select     			=> mux2.4.sel
+net Axis_1_CMD_Live_or_Stab_Output_float		<= mux2.4.out
+
+# Multiplex with Tuning Tool
+net Axis_1_CMD_Live_or_Stab_Output_float		=> mux2.5.in0
+net Sig_Out_float 				=> mux2.5.in1
+net Axis_1_Tuning_select			=> mux2.5.sel
+net Axis_1_CMD_final_Output_float			<= mux2.5.out
+
+# Convert final Output to s32
+net Axis_1_CMD_final_Output_float => conv_float_s32.1.in
+net Axis_1_CMD_final_s32 <= conv_float_s32.1.out
+
+# AXIS1 Backlash compensation and balancing 
+
+#net jacobian_Homed =>  backlash-8.1.enable							# Home Active Bit is inverted. Low when homing to disable Velocity offsets and backlash while homing
+setp  backlash-8.1.enable 1									# Force Bashlash comp off
+
+#Torque Signal Filtering
+net Axis_1_Torque_In_s32 lcec.0.4.Torque_Demand_Axis_A_IN conv_s32_float.2.in
+net Axis_1_Torque_In_float conv_s32_float.2.out lowpass.5.in
+setp lowpass.5.gain 0.0001
+setp lowpass.5.load 0
+net Axis_1_Actual_Torque_A_filtered_float lowpass.5.out conv_float_s32.6.in
+net Axis_1_Actual_Torque_A_filtered_s32 conv_float_s32.6.out  backlash-8.1.ActualTorque-A		# Send A actual filtered torque to backlash
+
+net Axis_1_Torque_B_In_s32 lcec.0.4.Torque_Actual_Axis_B_IN conv_s32_float.3.in
+net Axis_1_Torque_B_In_float conv_s32_float.3.out lowpass.6.in
+setp lowpass.6.gain 0.03
+setp lowpass.6.load 0
+net Axis_1_Actual_Torque_B_filtered_float lowpass.6.out conv_float_s32.7.in 
+#net Axis_1_Actual_Torque_B_filtered_s32 conv_float_s32.7.out backlash-8.1.ActualTorque-B   # Send B Filtered actual Torque to Backlash comp
+
+net Axis_1_Velocity_A_In_s32 lcec.0.4.Velocity_Actual_Axis_A_IN conv_s32_float.8.in
+net Axis_1_Velocity_A_In_float conv_s32_float.8.out lowpass.17.in
+setp lowpass.17.gain 0.03
+setp lowpass.17.load 0
+net Axis_1_Actual_Velocity_Axis_A lowpass.17.out conv_float_s32.21.in
+net Axis_1_Filtered_Actual_Velocity_A_s32 conv_float_s32.21.out  backlash-8.1.ActVelA		# Send A actual filtered Velocity to backlash 
+
+net Axis_1_TorqueOffsetA_Actual <= lcec.0.4.Torque_Offset_Axis_A_IN					# Get the actual torque offset.
+net Axis_1_TorqueOffsetA_Actual =>  backlash-8.1.TorqueOffsetActA
+
+net Axis_1_TorqueOffsetB_Actual <= lcec.0.4.Torque_Offset_Axis_B_IN					# Get the actual torque offset.
+net Axis_1_TorqueOffsetB_Actual =>  backlash-8.1.TorqueOffsetActB
+
+#setp  backlash-8.1.accelThreshold 30000								# not used
+#setp  backlash-8.1.velThreshold 1000								# not used Velocity threshold that causes BL to kick in. IF actual Velocity of Axis A is greater then this threshold, no backlash comp is active 
+setp  backlash-8.1.torqueThreshold 50								# Torque threshold that causes BL to kick in. IF actual filtered torque of Axis A is greater then this threshold, no backlash comp is active 
+setp  backlash-8.1.BacklashTorque 50								# Set this as backalsh stiffness
+setp  backlash-8.1.RampRate 0.1									# Amount position is adjusted each interation.....
+setp  backlash-8.1.StepSize 1
+#setp  backlash-8.1.maxOffset 100
+#setp  backlash-8.1.offsetDelay 1								
+#setp  backlash-8.1.AccelFilterGain 0.003							# gain for internal low pass filter of derived Accel value. Not currently used										  
+#setp  backlash-8.1.TorqueWindow 0.15								# % of actual torque a to stop ramping.. 0.05 = 5%
+
+net Axis_1_Output_Torque_B <= backlash-8.1.TargetTorque-B				# Send the new offset out to the amp Axis B
+net Axis_1_Output_Torque_B => lcec.0.4.Torque_Target_Axis_B_OUT										  
+									  
+net Axis_1_Output_Torque_Offset_A <= backlash-8.1.TargetOffsetTorque-A				# Send the new offset out to the amp Axis B
+net Axis_1_Output_Torque_Offset_A => lcec.0.4.Torque_Offset_Axis_A_OUT				# Sent it to the torque word				
+
+net Axis_1_Output_Torque_Offset_B <= backlash-8.1.TargetOffsetTorque-B				# Send the new offset out to the amp Axis B
+net Axis_1_Output_Torque_Offset_B => lcec.0.4.Torque_Offset_Axis_B_OUT				# Sent it to the torque word				
+
+# AXIS 2 TILT
+# Multiplex all possible outut sources
+# Multiplex Horizon or Joystick
+# This allows the Horizon Signal to be swapped with the Roll Joystick if the Axis 2 
+# Horizon Select is Shift Switch + RT CMD Switch 2
+net Operator_Output_Tilt_float 			=> mux2.6.in0 
+net Axis_2_Horizon_Output_float			=> mux2.6.in1
+net Axis_2_Horizon_select     			=> mux2.6.sel
+net Axis_2_CMD_Live_or_Horizon_Output_float		<= mux2.6.out
+
+# Multiplex that with Stabs or not
+net Axis_2_CMD_Live_or_Horizon_Output_float 	=> mux2.7.in0 
+net Axis_2_Stab_Output_float			=> mux2.7.in1
+net Axis_2_Stab_select     			=> mux2.7.sel
+net Axis_2_CMD_Live_or_Stab_Output_float		<= mux2.7.out
+
+# Multiplex with Tuning Tool
+net Axis_2_CMD_Live_or_Stab_Output_float		=> mux2.8.in0
+net Sig_Out_float 				=> mux2.8.in1
+net Axis_2_Tuning_select			=> mux2.8.sel
+net Axis_2_CMD_final_Output_float			<= mux2.8.out
+
+# Convert to s32
+net Axis_2_CMD_final_Output_float => conv_float_s32.2.in
+net Axis_2_CMD_final_s32 <= conv_float_s32.2.out
+# AXIS 2 Backlash compensation and balancing
+#net jacobian_Homed =>  backlash-8.2.enable							# Home Active Bit is inverted. Low when homing to disable Velocity offsets and backlash while homing
+setp  backlash-8.2.enable 1									        # Force Bashlash comp off
+
+# Torque Signal Filtering
+# Get Actual Torque and filter for Backlash Comp
+# Get the Actual Torque of Axis A and Filter it with a low pass filter
+# Convert the Filtered Actual Torque of Axis A to a Float and send to the Backlash Component 
+# A axis Actual Torque
+net Axis_2_Torque_In_s32 lcec.0.5.Torque_Demand_Axis_A_IN conv_s32_float.0.in 			         # Get actual Torque of the A axis
+net Axis_2_Torque_In_float conv_s32_float.0.out lowpass.3.in						# Convert to a float and send to a filter to remove the jitter
+setp lowpass.3.gain 0.03										# sets the filter frequency/ (Fairly high so torque signal is smooth but accurate
+setp lowpass.3.load 1											# Turns filter on or off	 0 is on / 1 is off
+net Axis_2_Actual_Torque_Axis_A_Inv lowpass.3.out conv_float_s32.4.in					# Convert back to a s32 unsigned int
+net Axis_2_Filtered_Actual_Torque_A_s32 conv_float_s32.4.out  backlash-8.2.ActualTorque-A		# Send A actual filtered torque to backlash
+
+# B axis Actual Torque
+net Axis_2_Torque_B_In_s32 lcec.0.5.Torque_Actual_Axis_B_IN conv_s32_float.1.in				# Get the Actual Torque of Axis B and Filter it with a low pass filter
+net Axis_2_Torque_B_In_float conv_s32_float.1.out lowpass.4.in						# Convert the Filtered Actual Torque of Axis B to a Float and send to the Backlash Component 
+setp lowpass.4.gain 0.03
+setp lowpass.4.load 1                                                                #        0 is on / 1 is off
+net Axis_2_Actual_Torque_Axis_B lowpass.4.out conv_float_s32.5.in
+#net Axis_2_Filtered_Actual_Torque_B_s32 conv_float_s32.5.out  backlash-8.2.ActualTorque-B		# Send B actual filtered torque to backlash comp
+
+# A axis Actual Velocity
+net Axis_2_Velocity_A_In_s32 lcec.0.5.Velocity_Actual_Axis_A_IN conv_s32_float.9.in			#The get the Actual Velocity of Axis A and filter it 
+net Axis_2_Velocity_A_In_float conv_s32_float.9.out lowpass.18.in
+setp lowpass.18.gain 0.015
+setp lowpass.18.load 0
+net Axis_2_Actual_Velocity1_Axis_A lowpass.18.out conv_float_s32.22.in
+net Axis_2_Filtered_Actual_Velocity_A_s32 conv_float_s32.22.out  backlash-8.2.ActVelA 			# and send the filtered output to the BL component 
+
+# Axis derived Acceleration
+net Axis_2_Actual_Velocity_Axis_A ddt.0.in							# Also send it to a derivative function to get the acceleration
+net  Axis_2_Filtered_Accel ddt.0.out lowpass.19.in						# Send this derived acceleration into a second lowpass filter
+setp lowpass.19.gain 0.003									# this value smooths out the acceleration ripple	
+setp lowpass.19.load 0										# Filter Active False				
+net Axis_2_Filtered_Accel_Out_float lowpass.19.out conv_float_s32.23.in
+net Axis_2_Filtered_Accel_Out_s32 conv_float_s32.23.out  backlash-8.2.ActualAccel-A  		# Send s32 Accel to backlash com
+
+# A axis Torque Offset
+net Axis_2_TorqueOffsetA_Actual <= lcec.0.5.Torque_Offset_Axis_A_IN					# Get the actual torque offset.
+net Axis_2_TorqueOffsetA_Actual =>  backlash-8.2.TorqueOffsetActA
+
+# B axis Torque Offset
+net Axis_2_TorqueOffsetB_Actual <= lcec.0.5.Torque_Offset_Axis_B_IN					# Get the actual torque offset.
+net Axis_2_TorqueOffsetB_Actual =>  backlash-8.2.TorqueOffsetActB
+
+# Set Backlash parameters
+#setp  backlash-8.2.accelThreshold 30000							# not used
+#setp  backlash-8.2.velThreshold 200
+setp  backlash-8.2.torqueThreshold 20								# Torque threshold that causes BL to kick in. IF actual filtered torque of Axis A is greater then this threshold, no backlash comp is active 
+setp  backlash-8.2.BacklashTorque 50								# Set this as backalsh stiffness
+setp  backlash-8.2.RampRate 0.01									# Amount position is adjusted each interation.....
+setp  backlash-8.2.StepSize 1
+#setp  backlash-8.2.maxOffset 100
+#setp  backlash-8.2.offsetDelay 1								
+#setp  backlash-8.2.AccelFilterGain 0.003							# gain for internal low pass filter of derived Accel value										  
+#setp  backlash-8.2.TorqueWindow 0.15								# % of actual torque a to stop ramping.. 0.05 = 5%
+setp  backlash-8.2.B-Torque-Sign False                                # Set the sign of B torque relative to A torque
+
+# Backlash Outputs
+net Axis_2_Output_Torque_B <= backlash-8.2.TargetTorque-B				        # Send the new offset out to the amp Axis B
+net Axis_2_Output_Torque_B => lcec.0.5.Torque_Target_Axis_B_OUT
+
+#net Axis_2_Filtered_Actual_Torque_A_s32 lcec.0.5.Torque_Target_Axis_B_OUT		        # Send A Actual Torque (Filtered) to Axis B Target torque Comp V 8 will do this internally
+net Axis_2_Output_Torque_Offset_A <= backlash-8.2.TargetOffsetTorque-A				# Send the new offset out to the amp Axis A
+net Axis_2_Output_Torque_Offset_A => lcec.0.5.Torque_Offset_Axis_A_OUT				# Sent it to the torque word				
+
+net Axis_2_Output_Torque_Offset_B <= backlash-8.2.TargetOffsetTorque-B				# Send the new offset out to the amp Axis B
+net Axis_2_Output_Torque_Offset_B => lcec.0.5.Torque_Offset_Axis_B_OUT				# Sent it to the torque word				
+
+# IK component
+# Control Pins
+net Head_Is_Enabled => jacobianNewTRv3.0.jacobianEnable						
+
+#setp jacobianNewTRv3.0.jacobianEnable 1                 # Test where jacobian is enabled
+setp jacobianNewTRv3.0.jacobianBypass 0					# Set the jacobian to be bypassed on bootup   0 = Bypassed 1 = Active
+
+# Scaling Factors
+setp jacobianNewTRv3.0.BypassScalePan  30		# Set step scale for bypass mode
+setp jacobianNewTRv3.0.BypassScaleRoll 90
+setp jacobianNewTRv3.0.BypassScaleTilt 20
+
+setp jacobianNewTRv3.0.StepScalePan   1		# Set the step size scale factors for the matrix mode
+setp jacobianNewTRv3.0.StepScaleRoll  1
+setp jacobianNewTRv3.0.StepScaleTilt  1000
+
+setp jacobianNewTRv3.0.MaxPanVel  10000		# set max input values for step calculation
+setp jacobianNewTRv3.0.MaxRollVel 10000
+setp jacobianNewTRv3.0.MaxTiltVel 10000
+
+# Gyro signals
+# Chassis Anglular Velocity
+net Chassis_Gyro_Ang_Z <= lcec.0.6.angZ2  	# Chassis Pan not used
+net Chassis_Gyro_Ang_Y <= lcec.0.6.angY2	# Chassis Tilt in Radian per second
+net Chassis_Gyro_Ang_Y => jacobianNewTRv3.0.chTiltW
+net Chassis_Gyro_Ang_X <= lcec.0.6.angX2  	# Chassis Roll in Radians Per second
+net Chassis_Gyro_Ang_X => jacobianNewTRv3.0.chRollW
+
+# Chassis Angle
+net Chassis_Pan_Angle <=  lcec.0.6.Pan_2	# Not used 
+net Chassis_Roll_Angle <=  lcec.0.6.Roll_2	# Get Chassis Gyro ROll angle  
+net Chassis_Roll_Angle => jacobianNewTRv3.0.chRoll	# Send it to the IK component
+net Chassis_Tilt_Angle <=  lcec.0.6.Tilt_2	# Get the Chassis Gyro Tilt Angle
+net Chassis_Tilt_Angle => jacobianNewTRv3.0.chTilt	# send it to the IK component
+
+# Camera Angular Accelertion
+# Camera Gyro Axis derived Acceleration
+# Pan
+#net Camera_Gyro_Ang_Vel_Pan <= lcec.0.6.angZ1							# Get the Camera Gyro Pan angular Velocity in Radians/sec
+net Axis_0_Ang_Rate_cam_rad_s ddt.3.in						      		# Also send it to a derivative function to get the acceleration
+net Camera_Pan_Filtered_Accel ddt.3.out lowpass.23.in						# Send this derived acceleration into a lowpass filter
+setp lowpass.23.gain 0.003									# this value smooths out the acceleration ripple	
+setp lowpass.23.load 0										# Filter Active False				
+net Cam_Pan_Filtered_Accel_Out_float lowpass.23.out jacobianNewTRv3.0.CamPanAcc			# send filtered Camera Pan angular acceleration to Jacobian
+
+# Roll
+#net Camera_Gyro_Ang_Vel_Roll <= lcec.0.6.angX1							# Get the Camera Gyro Pan angular Velocity in Radians/sec
+net Axis_1_Ang_Rate_cam_rad_s ddt.4.in						      		# Also send it to a derivative function to get the acceleration
+net Camera_Roll_Filtered_Accel ddt.4.out lowpass.24.in						# Send this derived acceleration into a lowpass filter
+setp lowpass.24.gain 0.003									# this value smooths out the acceleration ripple	
+setp lowpass.24.load 0										# Filter Active False				
+net Cam_Roll_Filtered_Accel_Out_float lowpass.24.out jacobianNewTRv3.0.CamRollAcc			# send filtered Camera Pan angular acceleration to Jacobian
+
+# Tilt
+#net Camera_Gyro_Ang_Vel_Tilt <= lcec.0.6.angY1							# Get the Camera Gyro Pan angular Velocity in Radians/sec
+net Axis_2_Ang_Rate_cam_rad_s ddt.5.in						      		# Also send it to a derivative function to get the acceleration
+net Camera_Tilt_Filtered_Accel ddt.5.out lowpass.25.in						# Send this derived acceleration into a lowpass filter
+setp lowpass.25.gain 0.003									# this value smooths out the acceleration ripple	
+setp lowpass.25.load 0										# Filter Active False				
+net Cam_Tilt_Filtered_Accel_Out_float lowpass.25.out jacobianNewTRv3.0.CamTiltAcc			# send filtered Camera Pan angular acceleration to Jacobian
+
+# Camera Angle
+#net Camera_Pan_Angle <=  lcec.0.6.Pan_1		# Get Chassis Gyro Pan angle
+#net Camera_Roll_Angle <=  lcec.0.6.Roll_1	# Get Chassis Gyro ROll angle
+#net Camera_Tilt_Angle <=  lcec.0.6.Tilt_1	# Get the Chassis Gyro Tilt Angle
+# Axis Postions
+net Axis_0_Actual_Position_A => jacobianNewTRv3.0.PanA				# Get the net of Actual position for Slave 0 MotorA (pan) Send it to the Pan position input of the IK
+net Axis_0_Actual_Position_B <= lcec.0.3.Position_Actual_Axis_B_IN			# Get the actual Positon of Axis  0  Motor B
+net Axis_0_Actual_Position_B => jacobianNewTRv3.0.PanB				# Send it to the Pan position input of the IK Pan B 
+net Axis_1_Actual_Position_A => jacobianNewTRv3.0.RollA				# Get the net of Actual position for Slave 1 MotorA (roll) Send it to the ROLL position
+
+# input of the IK Send it to the Pan position input of the IK 	
+net Axis_1_Actual_Position_B <= lcec.0.4.Position_Actual_Axis_B_IN		# Get the actual Positon of Axis  1  Motor B
+net Axis_1_Actual_Position_B => jacobianNewTRv3.0.RollB				# Send it to the Pan position input of the IK
+net Axis_2_Actual_Position_A => jacobianNewTRv3.0.TiltA				# Get the net of Actual position for Slave 2 MotorA (Tilt) Send it to the Tilt position input of the IK
+net Axis_2_Actual_Position_B <= lcec.0.5.Position_Actual_Axis_B_IN		# Get the actual Positon of Axis  2  Motor B
+net Axis_2_Actual_Position_B => jacobianNewTRv3.0.TiltB				# Send it to the Tilt position input of the IK
+
+# Axis Velocity input
+net Axis_0_Actual_Velocity_A_s32 => jacobianNewTRv3.0.PanAVel			
+net Axis_1_Actual_Velocity_A_s32 => jacobianNewTRv3.0.RollAVel			
+net Axis_2_Actual_Velocity_A_s32 => jacobianNewTRv3.0.TiltAVel			
+
+# Operator Inputs
+net Axis_0_CMD_final_s32 => jacobianNewTRv3.0.PanVel		# Send the Axis 0 Velocity command to the IK 
+net Axis_1_CMD_final_s32 => jacobianNewTRv3.0.RollVel		# Send the Axis 2 Velocity command to the IK 
+net Axis_2_CMD_final_s32 => jacobianNewTRv3.0.TiltVel		# Send the Axis 2 Velocity command to the IK 
+
+# Output Position Commands
+net Joint_0_Position_Command_A	<= jacobianNewTRv3.0.deltaPanA			# send out the incremental Position change to both Motors
+net Joint_0_Position_Command_A	=> lcec.0.3.Position_Target_Axis_A_OUT		
+net Joint_0_Position_Command_B	<= jacobianNewTRv3.0.deltaPanB			# send out the increment_al Position change to both Motors
+net Joint_0_Position_Command_B	=> lcec.0.3.Position_Target_Axis_B_OUT		# Disabled as torque mode runs axis B in Mode 10 CST 
+net Joint_1_Position_Command_A	<= jacobianNewTRv3.0.deltaRollA			 # Send out incremental Position Command to both motors
+net Joint_1_Position_Command_A	=> lcec.0.4.Position_Target_Axis_A_OUT		  
+net Joint_1_Position_Command_B	<= jacobianNewTRv3.0.deltaRollB			 # Send out incremental Position Command to both motors
+net Joint_1_Position_Command_B	=> lcec.0.4.Position_Target_Axis_B_OUT		 # Disabled as torque mode runs axis B in Mode 10 CST 	
+net Joint_2_Position_Command_A	<= jacobianNewTRv3.0.deltaTiltA			 #Send out the incremental Position Change to both motors
+net Joint_2_Position_Command_A	=> lcec.0.5.Position_Target_Axis_A_OUT		 
+net Joint_2_Position_Command_B	<= jacobianNewTRv3.0.deltaTiltB			 #Send out the incremental Position Change to both motors
+net Joint_2_Position_Command_B	=> lcec.0.5.Position_Target_Axis_B_OUT		 # Disabled as torque mode runs axis B in Mode 10 CST 
+
+# Output Velocity Commands
+net Joint_0_Velocity_Command_A	<= jacobianNewTRv3.0.PanTargetVel			# send out the Velocity change to both Motors
+#net Joint_0_Velocity_Command_A	=> lcec.0.3.Velocity_Target_Axis_A_OUT		
+#net Joint_0_Velocity_Command_B	<= jacobianNewTRv3.0.PanTargetVel			# send out the Velocity change to both Motors
+#net Joint_0_Velocity_Command_B	=> lcec.0.3.Velocity_Target_Axis_B_OUT		
+net Joint_1_Velocity_Command_A	<= jacobianNewTRv3.0.RollTargetVel			# send out the Velocity change to both Motors
+#net Joint_1_Velocity_Command_A	=> lcec.0.4.Velocity_Target_Axis_A_OUT		
+#net Joint_1_Velocity_Command_B	<= jacobianNewTRv3.0.RollTargetVel			# send out the Velocity change to both Motors
+#net Joint_1_Velocity_Command_B	=> lcec.0.4.Velocity_Target_Axis_B_OUT		
+net Joint_2_Velocity_Command_A	<= jacobianNewTRv3.0.TiltTargetVel			# send out the Velocity change to both Motors
+#net Joint_2_Velocity_Command_A	=> lcec.0.5.Velocity_Target_Axis_A_OUT		
+#net Joint_2_Velocity_Command_B	<= jacobianNewTRv3.0.TiltTargetVel			# send out the Velocity change to both Motors
+#net Joint_2_Velocity_Command_B	=> lcec.0.5.Velocity_Target_Axis_B_OUT
+
+source CPS_UI.hal
+source JS_Param_Init.hal
+
+start
+
+loadusr halscope 500000

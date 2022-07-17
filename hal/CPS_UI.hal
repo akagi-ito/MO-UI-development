@@ -1,0 +1,388 @@
+
+
+# set logging to 'pretty high'
+#log rt 2
+#log user 2
+
+
+sete 1 0.1  # sets floating point minimum value change to send out to UI
+
+
+newcomp CPS_UI timer=100 acceptdefaults
+
+
+# Camera Gyro Angles
+newpin CPS_UI CPS_UI.Pan_Gyro_Angle    float in eps=1
+newpin CPS_UI CPS_UI.Roll_Gyro_Angle   float in eps=1
+newpin CPS_UI CPS_UI.Tilt_Gyro_Angle   float in eps=1
+
+
+# Head Voltage
+newpin CPS_UI CPS_UI.System_Voltage s32 in
+
+
+# Enable Button
+newpin CPS_UI CPS_UI.UI_System_Enable bit out 
+newpin CPS_UI CPS_UI.SystemEnabled  bit in
+
+
+# Clear Fault Button
+newpin CPS_UI CPS_UI.UI_Clear_Fault bit out
+newpin CPS_UI CPS_UI.Fault_Present bit in
+
+
+# Status and Latched Status Words
+newpin CPS_UI CPS_UI.Slv0_AxisA_Status  u32 in
+newpin CPS_UI CPS_UI.Slv0_AxisA_Latch_Status  u32 in
+newpin CPS_UI CPS_UI.Slv0_AxisB_Status  u32 in
+newpin CPS_UI CPS_UI.Slv0_AxisB_Latch_Status  u32 in
+
+newpin CPS_UI CPS_UI.Slv1_AxisA_Status  u32 in
+newpin CPS_UI CPS_UI.Slv1_AxisA_Latch_Status  u32 in
+newpin CPS_UI CPS_UI.Slv1_AxisB_Status  u32 in
+newpin CPS_UI CPS_UI.Slv1_AxisB_Latch_Status  u32 in
+
+newpin CPS_UI CPS_UI.Slv2_AxisA_Status  u32 in
+newpin CPS_UI CPS_UI.Slv2_AxisA_Latch_Status  u32 in
+newpin CPS_UI CPS_UI.Slv2_AxisB_Status  u32 in
+newpin CPS_UI CPS_UI.Slv2_AxisB_Latch_Status  u32 in
+
+
+# Motor Currents
+newpin CPS_UI CPS_UI.pan_current s32 in
+newpin CPS_UI CPS_UI.roll_current s32 in
+newpin CPS_UI CPS_UI.tilt_current s32 in
+
+
+# USB Comms active
+newpin CPS_UI CPS_UI.USB_Comms  u32 in
+newpin CPS_UI CPS_UI.Wheels_Comms  u32 in
+
+
+# Stabilization On Off
+newpin CPS_UI CPS_UI.UI_Pan_Stab bit out
+newpin CPS_UI CPS_UI.Pan_Stab_Active bit in
+newpin CPS_UI CPS_UI.UI_Roll_Stab bit out
+newpin CPS_UI CPS_UI.Roll_Stab_Active bit in
+newpin CPS_UI CPS_UI.UI_Tilt_Stab bit out
+newpin CPS_UI CPS_UI.Tilt_Stab_Active bit in
+
+
+# Horizon  On Off
+newpin CPS_UI CPS_UI.UI_Pan_Horizon bit out
+newpin CPS_UI CPS_UI.Pan_Horizon_Active bit in
+newpin CPS_UI CPS_UI.UI_Roll_Horizon bit out
+newpin CPS_UI CPS_UI.Roll_Horizon_Active bit in
+newpin CPS_UI CPS_UI.UI_Tilt_Horizon bit out
+newpin CPS_UI CPS_UI.Tilt_Horizon_Active bit in
+
+
+# Gyro Status Pins for Diagnostics
+newpin CPS_UI CPS_UI.Gyro1_Time_Error u32 in      # Gyro Packet Not received by ethercat slave inside timeout alloted. Camera Gyro
+newpin CPS_UI CPS_UI.Gyro2_Time_Error u32 in      # Gyro Packet Not received by ethercat slave inside timeout alloted. Chassis Gyro
+newpin CPS_UI CPS_UI.Time_Com1_Error  u32 in      # Time Stamp in Packets indicates packets missing Camera Gyro
+newpin CPS_UI CPS_UI.Time_Com2_Error  u32 in      # Time Stamp in Packets indicates packets missing Chassis Gyro
+newpin CPS_UI CPS_UI.CRC1_Error    u32   in      # Checksum bad on Gyro packet. Camera Gyro
+newpin CPS_UI CPS_UI.CRC2_Error    u32   in      # Checksum bad on Gyro packet. Chassis Gyro
+
+
+### JoyStick Console
+
+
+# Control
+newpin CPS_UI CPS_UI.JS1_Cmd    float in eps=1
+newpin CPS_UI CPS_UI.JS1_Raw	float in
+newpin CPS_UI CPS_UI.JS2_Cmd 	float in
+newpin CPS_UI CPS_UI.JS2_Raw	float in
+newpin CPS_UI CPS_UI.JS3_Cmd 	float in
+newpin CPS_UI CPS_UI.JS3_Raw	float in
+
+newpin CPS_UI CPS_UI.JS1_Dir	bit   out
+newpin CPS_UI CPS_UI.JS2_Dir	bit   out
+newpin CPS_UI CPS_UI.JS3_Dir	bit   out
+
+newpin CPS_UI CPS_UI.Pot1_Cmd   float in   # Bodnar module 0 (so 1)
+newpin CPS_UI CPS_UI.Pot2_Cmd   float in   # Bodnar module 0 (so 2)
+newpin CPS_UI CPS_UI.Pot3_Cmd   float in   # Bodnar module 0 (so 3)
+newpin CPS_UI CPS_UI.Pot4_Cmd   float in   # Bodnar module 0 (so 4)
+newpin CPS_UI CPS_UI.Pot5_Cmd   float in   # Bodnar module 0 (so 5)
+newpin CPS_UI CPS_UI.Pot6_Cmd   float in   # Bodnar module 0 (so 6)
+
+newpin CPS_UI CPS_UI.Pot11_Cmd   float in   # Bodnar module 1 (so 11)
+newpin CPS_UI CPS_UI.Pot12_Cmd   float in   # Bodnar module 1 (so 12)
+newpin CPS_UI CPS_UI.Pot13_Cmd   float in   # Bodnar module 1 (so 13)
+newpin CPS_UI CPS_UI.Pot14_Cmd   float in   # Bodnar module 1 (so 14)
+
+newpin CPS_UI CPS_UI.Pot16_Cmd   float in   # Bodnar module 1 (so 16)
+
+newpin CPS_UI CPS_UI.SW0    bit in          # Bodnar Switch
+newpin CPS_UI CPS_UI.SW1    bit in          # Bodnar Switch
+newpin CPS_UI CPS_UI.SW2    bit in          # Bodnar Switch
+newpin CPS_UI CPS_UI.SW3    bit in          # Bodnar Switch
+newpin CPS_UI CPS_UI.SW4    bit in          # Bodnar Switch
+newpin CPS_UI CPS_UI.SW5    bit in          # Bodnar Switch
+newpin CPS_UI CPS_UI.SW6    bit in          # Bodnar Switch
+newpin CPS_UI CPS_UI.SW7    bit in          # Bodnar Switch
+newpin CPS_UI CPS_UI.SW8    bit in          # Bodnar Switch
+newpin CPS_UI CPS_UI.SW9    bit in          # Bodnar Switch
+
+
+#  JoyStick Parameters
+newpin CPS_UI CPS_UI.JS1_Scale float io eps=1
+newpin CPS_UI CPS_UI.JS1_Feather float io eps=1
+newpin CPS_UI CPS_UI.JS1_Max float io eps=1
+newpin CPS_UI CPS_UI.JS1_Min float io eps=1
+newpin CPS_UI CPS_UI.JS1_Mid float io eps=1
+newpin CPS_UI CPS_UI.JS1_Max_Accel float io eps=1
+newpin CPS_UI CPS_UI.JS1_Scaled_Max float io eps=1
+newpin CPS_UI CPS_UI.JS1_Scaled_Min float io eps=1
+
+newpin CPS_UI CPS_UI.JS2_Scale float io eps=1
+newpin CPS_UI CPS_UI.JS2_Feather float io eps=1
+newpin CPS_UI CPS_UI.JS2_Max float io eps=1
+newpin CPS_UI CPS_UI.JS2_Min float io eps=1
+newpin CPS_UI CPS_UI.JS2_Mid float io eps=1
+newpin CPS_UI CPS_UI.JS2_Max_Accel float io eps=1
+newpin CPS_UI CPS_UI.JS2_Scaled_Max float io eps=1
+newpin CPS_UI CPS_UI.JS2_Scaled_Min float io eps=1
+
+newpin CPS_UI CPS_UI.JS3_Scale float out eps=1
+newpin CPS_UI CPS_UI.JS3_Feather float io eps=1
+newpin CPS_UI CPS_UI.JS3_Max float io eps=1
+newpin CPS_UI CPS_UI.JS3_Min float io eps=1
+newpin CPS_UI CPS_UI.JS3_Mid float io eps=1
+newpin CPS_UI CPS_UI.JS3_Max_Accel float io eps=1
+newpin CPS_UI CPS_UI.JS3_Scaled_Max float io eps=1
+newpin CPS_UI CPS_UI.JS3_Scaled_Min float io eps=1
+
+#  Potentiometer Parameters
+newpin CPS_UI CPS_UI.Pot1_Scale float io eps=1
+newpin CPS_UI CPS_UI.Pot1_Offset float io eps=1
+
+newpin CPS_UI CPS_UI.Pot2_Scale float io eps=1
+newpin CPS_UI CPS_UI.Pot2_Offset float io eps=1
+
+newpin CPS_UI CPS_UI.Pot3_Scale float io eps=1
+newpin CPS_UI CPS_UI.Pot3_Offset float io eps=1
+
+newpin CPS_UI CPS_UI.Pot4_Scale float io eps=1
+newpin CPS_UI CPS_UI.Pot4_Offset float io eps=1
+
+newpin CPS_UI CPS_UI.Pot5_Scale float io eps=1
+newpin CPS_UI CPS_UI.Pot5_Offset float io eps=1
+
+newpin CPS_UI CPS_UI.Pot6_Scale float io eps=1
+newpin CPS_UI CPS_UI.Pot6_Offset float io eps=1
+
+newpin CPS_UI CPS_UI.Pot11_Scale float io eps=1
+newpin CPS_UI CPS_UI.Pot11_Offset float io eps=1
+
+newpin CPS_UI CPS_UI.Pot12_Scale float io eps=1
+newpin CPS_UI CPS_UI.Pot12_Offset float io eps=1
+
+newpin CPS_UI CPS_UI.Pot13_Scale float io eps=1
+newpin CPS_UI CPS_UI.Pot13_Offset float io eps=1
+
+newpin CPS_UI CPS_UI.Pot14_Scale float io eps=1
+newpin CPS_UI CPS_UI.Pot14_Offset float io eps=1
+
+newpin CPS_UI CPS_UI.Pot16_Scale float io eps=1
+newpin CPS_UI CPS_UI.Pot16_Offset float io eps=1
+
+# Wheels
+newpin CPS_UI CPS_UI.pan_wheel_velocity float in eps=1
+newpin CPS_UI CPS_UI.roll_wheel_velocity float in eps=1 
+newpin CPS_UI CPS_UI.tilt_wheel_velocity float in eps=1
+
+newpin CPS_UI CPS_UI.pan_wheel_pos float in eps=1
+newpin CPS_UI CPS_UI.roll_wheel_pos float in eps=1 
+newpin CPS_UI CPS_UI.tilt_wheel_pos float in eps=1
+
+newpin CPS_UI CPS_UI.pan_wheel_dir u32 in 
+newpin CPS_UI CPS_UI.roll_wheel_dir u32 in  
+newpin CPS_UI CPS_UI.tilt_wheel_dir u32 in 
+
+#  Moter tuning
+#newpin CPS_UI.pan_positon_proportinal_gain u32 
+#newpin CPS_UI.pan_positon_intergral_gain u32 
+#newpin CPS_UI.pan_positon_derivative_gain u32 
+#newpin CPS_UI.pan_positon_gain_scale u32 
+#newpin CPS_UI.pan_positon_velocity_feedfwd_gain u32 
+#newpin CPS_UI.pan_positon_accel_feedfwd_gain u32 
+#newpin CPS_UI.pan_positon_integral_drain u32 
+#newpin CPS_UI.pan_velocity_proportinal_gain u32 
+#newpin CPS_UI.pan_velocity_integral_gain u32 
+#newpin CPS_UI.pan_velocity_feedfwd_gain u32 
+#newpin CPS_UI.pan_velocity_gain_scale u32 
+#newpin CPS_UI.pan_velocity_intergral_drain u32 
+#newpin CPS_UI.pan_current_torque_slope_TQ u32
+#newpin CPS_UI.pan_current_proportional_gain u32
+#newpin CPS_UI.pan_current_intergral_gain u32
+#newpin CPS_UI.pan_current_derviative_gain u32
+
+#newpin CPS_UI.roll_positon_proportinal_gain u32 
+#newpin CPS_UI.roll_positon_intergral_gain u32 
+#newpin CPS_UI.roll_positon_derivative_gain u32 
+#newpin CPS_UI.roll_positon_gain_scale u32 
+#newpin CPS_UI.roll_positon_velocity_feedfwd_gain u32 
+#newpin CPS_UI.roll_positon_accel_feedfwd_gain u32 
+#newpin CPS_UI.roll_positon_integral_drain u32 
+#newpin CPS_UI.roll_velocity_proportinal_gain u32 
+#newpin CPS_UI.roll_velocity_integral_gain u32 
+#newpin CPS_UI.roll_velocity_feedfwd_gain u32 
+#newpin CPS_UI.roll_velocity_gain_scale u32 
+#newpin CPS_UI.roll_velocity_intergral_drain u32 
+#newpin CPS_UI.roll_current_torque_slope_TQ u32
+#newpin CPS_UI.roll_current_proportional_gain u32
+#newpin CPS_UI.roll_current_intergral_gain u32
+#newpin CPS_UI.rollcurrent_derviative_gain u32
+
+#newpin CPS_UI.tilt_positon_proportinal_gain u32 
+#newpin CPS_UI.tilt_positon_intergral_gain u32 
+#newpin CPS_UI.tilt_positon_derivative_gain u32 
+#newpin CPS_UI.tilt_positon_gain_scale u32 
+#newpin CPS_UI.tilt_positon_velocity_feedfwd_gain u32 
+#newpin CPS_UI.tilt_positon_accel_feedfwd_gain u32 
+#newpin CPS_UI.tilt_positon_integral_drain u32 
+#newpin CPS_UI.tilt_velocity_proportinal_gain u32 
+#newpin CPS_UI.tilt_velocity_integral_gain u32 
+#newpin CPS_UI.tilt_velocity_feedfwd_gain u32 
+#newpin CPS_UI.tilt_velocity_gain_scale u32 
+#newpin CPS_UI.tilt_velocity_intergral_drain u32 
+#newpin CPS_UI.tilt_current_torque_slope_TQ u32
+#newpin CPS_UI.tilt_current_proportional_gain u32
+#newpin CPS_UI.tilt_current_intergral_gain u32
+#newpin CPS_UI.tilt_current_derviative_gain u32
+
+#
+# End of Pin Defs
+#
+
+# Pin signal Maps. Also see Ord section in main script for signals that paralell switches
+
+
+ready  CPS_UI
+
+net Axis_0_Horizon_Gyro => CPS_UI.Pan_Gyro_Angle
+net Axis_1_Horizon_Gyro => CPS_UI.Roll_Gyro_Angle
+net Axis_2_Horizon_Gyro => CPS_UI.Tilt_Gyro_Angle
+
+net System_Voltage_10_s32 => CPS_UI.System_Voltage
+
+net UI_Enable <= CPS_UI.UI_System_Enable  #  Send Signal to OR with Console Switch
+net Head_Is_Enabled => CPS_UI.SystemEnabled     # Get Flag from Control FSM when Head is enabled
+
+net UI_Clear_Fault_Button <= CPS_UI.UI_Clear_Fault  # Send Signal to OR with Console switch
+net FSM_Fault_Present  => CPS_UI.Fault_Present  # Get Flag from Control FSM if there is a fault or not
+
+net FSM_Status_Word_Slave0_AxisA CPS_UI.Slv0_AxisA_Status
+net FSM_Status_Word_Slave0_AxisB CPS_UI.Slv0_AxisB_Status
+net FSM_Status_Word_Slave1_AxisA CPS_UI.Slv1_AxisA_Status
+net FSM_Status_Word_Slave1_AxisB CPS_UI.Slv1_AxisB_Status
+net FSM_Status_Word_Slave2_AxisA CPS_UI.Slv2_AxisA_Status
+net FSM_Status_Word_Slave2_AxisB CPS_UI.Slv2_AxisB_Status
+
+net  FSM_LatchedStatus_Word_Slave0_AxisA CPS_UI.Slv0_AxisA_Latch_Status
+net  FSM_LatchedStatus_Word_Slave0_AxisB CPS_UI.Slv0_AxisB_Latch_Status
+net  FSM_LatchedStatus_Word_Slave1_AxisA CPS_UI.Slv1_AxisA_Latch_Status
+net  FSM_LatchedStatus_Word_Slave1_AxisB CPS_UI.Slv1_AxisB_Latch_Status
+net  FSM_LatchedStatus_Word_Slave2_AxisA CPS_UI.Slv2_AxisA_Latch_Status
+net  FSM_LatchedStatus_Word_Slave2_AxisB CPS_UI.Slv2_AxisB_Latch_Status
+
+net Motor_Current_PAN  lcec.0.3.Current_Actual_Axis_A_IN CPS_UI.pan_current
+net Motor_Current_ROLL lcec.0.4.Current_Actual_Axis_A_IN CPS_UI.roll_current
+net Motor_Current_TILT lcec.0.5.Current_Actual_Axis_A_IN CPS_UI.tilt_current
+
+#
+# Stabilization Active Signals
+#
+
+net GUI_Pan_Stab_Button  <= CPS_UI.UI_Pan_Stab
+net GUI_Roll_Stab_Button <= CPS_UI.UI_Roll_Stab
+net GUI_Tilt_Stab_Button <= CPS_UI.UI_Tilt_Stab
+
+net Axis_0_Stab_select => CPS_UI.Pan_Stab_Active
+net Axis_1_Stab_select => CPS_UI.Roll_Stab_Active
+net Axis_2_Stab_select => CPS_UI.Tilt_Stab_Active
+
+#
+# Horizon Active Signals
+#
+
+net GUI_Pan_Horizon_Button  <= CPS_UI.UI_Pan_Horizon
+net GUI_Roll_Horizon_Button <= CPS_UI.UI_Roll_Horizon
+net GUI_Tilt_Horizon_Button <= CPS_UI.UI_Tilt_Horizon
+
+net Horizon_Pan_Active => CPS_UI.Pan_Horizon_Active
+net Horizon_Roll_Active => CPS_UI.Roll_Horizon_Active
+net Horizon_Tilt_Active => CPS_UI.Tilt_Horizon_Active
+
+#
+# JoyStick Console Signals
+#
+
+net JS1_Cmd_float     =>  CPS_UI.JS1_Cmd
+#net JS1_Dir_Combined <=  CPS_UI.JS1_Dir       # This signal is feeds into Bodnar to switch DIR. Needs a button in the GUI to or with the switch
+net JS1_Raw           =>  CPS_UI.JS1_Raw	
+
+net JS2_Cmd_float     =>  CPS_UI.JS2_Cmd 	
+#net JS2_Dir_Combined <=  CPS_UI.JS2_Dir       # 
+net JS2_Raw           =>  CPS_UI.JS2_Raw 
+
+net JS3_Cmd_float     =>  CPS_UI.JS3_Cmd 	
+#net JS3_Dir_Combined <=  CPS_UI.JS3_Dir       # 
+net JS3_Raw           =>  CPS_UI.JS3_Raw 
+
+net JS1_Sens_float    =>   CPS_UI.Pot1_Cmd      # Net pot 4 bodnar 1 directly as it is not assigned any where
+net JS2_Sens_float    =>   CPS_UI.Pot2_Cmd      # Net pot 4 bodnar 1 directly as it is not assigned any where
+net JS1_Damping_float =>   CPS_UI.Pot3_Cmd      # Net pot 13 bodnar 1 directly as it is not assigned any where
+
+net JS2_Damping_float   =>   CPS_UI.Pot4_Cmd      # Net pot 14 bodnar 1 directly as it is not assigned any where
+net Sig_freq   =>   CPS_UI.Pot5_Cmd      # Net pot 15 bodnar 1 directly as it is not assigned any where
+net Sig_ampl   =>   CPS_UI.Pot6_Cmd      # Net pot 15 bodnar 1 directly as it is not assigned any where
+
+net JS3_Damping_float   =>   CPS_UI.Pot11_Cmd      # Net pot 4 bodnar 1 directly as it is not assigned any where
+net JS3_Sens_float   =>   CPS_UI.Pot12_Cmd      # Net pot 4 bodnar 1 directly as it is not assigned any where
+net Pot13_Cmd_float   =>   CPS_UI.Pot13_Cmd      # Net pot 13 bodnar 1 directly as it is not assigned any where
+
+net Pot14_Cmd_float   =>   CPS_UI.Pot14_Cmd      # Net pot 14 bodnar 1 directly as it is not assigned any where
+net Pot16_Cmd_float   =>   CPS_UI.Pot16_Cmd      # Net pot 15 bodnar 1 directly as it is not assigned any where
+
+net Console_Enable_Switch    => CPS_UI.SW0
+net Clear_Fault_SW           => CPS_UI.SW1
+
+net Shift_Switch             => CPS_UI.SW2
+net Shift_Switch_Right        => CPS_UI.SW3
+
+net Left_CMD_Switch_0       => CPS_UI.SW4
+net Left_CMD_Switch_1       => CPS_UI.SW6  
+net Left_CMD_Switch_2       => CPS_UI.SW8
+
+net Right_CMD_Switch_0      => CPS_UI.SW5
+net Right_CMD_Switch_1      => CPS_UI.SW7  
+net Right_CMD_Switch_2      => CPS_UI.SW9
+
+#
+# Wheels
+#
+
+net Pan_Wheel_Vel => CPS_UI.pan_wheel_velocity
+net Roll_Wheel_Vel => CPS_UI.roll_wheel_velocity
+net Tilt_Wheel_Vel => CPS_UI.tilt_wheel_velocity
+
+net Pan_Wheel_Pos => CPS_UI.pan_wheel_pos
+net Roll_Wheel_Pos => CPS_UI.roll_wheel_pos
+net Tilt_Wheel_Pos => CPS_UI.tilt_wheel_pos
+
+net Pan_Wheel_Dir => CPS_UI.pan_wheel_dir
+net Roll_Wheel_Dir => CPS_UI.roll_wheel_dir
+net Tilt_Wheel_Dir => CPS_UI.tilt_wheel_dir
+
+#
+# Joystick Tuning Params
+#
+
+#setp CPS_UI.JS3_Scale 0.666
+
+
+loadusr -W haltalk --ini haltalk.ini --debug 2
