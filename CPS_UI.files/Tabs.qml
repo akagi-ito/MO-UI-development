@@ -208,8 +208,8 @@ HalApplicationWindow {
 
         Item {
 
-            id: moterTab
-            MOTER { }
+            id: motorTab
+            MOTOR { }
         }
     }
 }
