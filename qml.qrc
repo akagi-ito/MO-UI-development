@@ -19,6 +19,6 @@
         <file>CPS_UI.files/Joystick_Button_Connect.js</file>
         <file>../../../CPS_UI/CPS_UI/CPS_UI.files/Joystick_Status_Window.qml</file>
         <file>CPS_UI.files/Joystick_Status_Window.qml</file>
-        <file>CPS_UI.files/MOTER.qml</file>
+        <file>CPS_UI.files/MOTOR.qml</file>
     </qresource>
 </RCC>
