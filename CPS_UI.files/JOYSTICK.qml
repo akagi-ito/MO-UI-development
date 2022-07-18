@@ -849,8 +849,8 @@ Item {
                 id: lf_js_dialog
                 title: "Left JoyStick Parameters"
                 anchors.centerIn: parent
-                width: 400//js_console_image.width * 0.3
-                height: 450//js_console_image.height * 0.8
+                width: 370//js_console_image.width * 0.3
+                height: 440//js_console_image.height * 0.8
                 padding: 10
                 modal: true
                 focus: true
@@ -911,16 +911,14 @@ Item {
                     height : parent.height*0.8
 
                     Item {
-
                         id : js3_rect_var
                         property var rect_width_scale : 1.0
                         property var rect_height_scale : 0.08
                     }
 
                     Text {
-
                         id: textjs3_01
-                        //anchors.top: rect_js3.top
+                        anchors.top: rect_js3.top
                         width : parent.width
                         color: "black"
                         textFormat : Text.StyledText
@@ -958,7 +956,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic1.0.JS1-Scale";
                             parameter_hal_pin_name : "JS3_Scale";
                             parameter_hal_pin_id : js3_scale;
-                            width: 350;
+                            width: 340;
                             height: 25;
 
                             spinbox.onValueModified:  {
@@ -984,7 +982,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic1.0.JS1-Feather";
                             parameter_hal_pin_name : "JS3_Feather";
                             parameter_hal_pin_id: js3_feather;
-                            width: 350;
+                            width: 340;
                             height: 25;
 
                             spinbox.onValueModified:  {
@@ -1010,7 +1008,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic1.0.JS1-Max";
                             parameter_hal_pin_name : "JS3_Max";
                             parameter_hal_pin_id: js3_max;
-                            width: 350;
+                            width: 340;
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -1036,7 +1034,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic1.0.JS1-Min";
                             parameter_hal_pin_name : "JS3_Min";
                             parameter_hal_pin_id: js3_min;
-                            width: 350
+                            width: 340
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -1062,7 +1060,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic1.0.JS1-Mid";
                             parameter_hal_pin_name : "JS3_Mid";
                             parameter_hal_pin_id: "js3_mid";
-                            width: 350
+                            width: 340
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -1088,7 +1086,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic1.0.JS1-MaxAccel";
                             parameter_hal_pin_name : "JS3_Max_Accel";
                             parameter_hal_pin_id: "js3_max_accel";
-                            width: 350
+                            width: 340
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -1114,7 +1112,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic1.0.JS1-ScaledMax";
                             parameter_hal_pin_name : "JS3_Scaled_Max";
                             parameter_hal_pin_id: "js3_scaled_max";
-                            width: 350
+                            width: 340
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -1140,7 +1138,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic1.0.JS1-ScaledMin";
                             parameter_hal_pin_name : "JS3_Scaled_Min";
                             parameter_hal_pin_id: "js3_scaled_min";
-                            width: 350
+                            width: 340
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -1197,7 +1195,6 @@ Item {
                                 color: (js3_dir.value === true) ? "light grey" : "black"
                             } // Close label
                         }      // Close Rect
-
                     }             // Close Button
                 }             // Close Rectangle
             }                  // Close Dialog
@@ -2029,10 +2026,10 @@ Item {
 
             Dialog {
                 id: rt_js_dialog
-                title: "PAN Motor Tuning"
+                title: "Right joyStick Parameters"
                 anchors.centerIn: parent
-                width:  750
-                height: 600
+                width:  600
+                height: 400
                 padding: 10
                 modal: true
                 focus: true
@@ -2048,6 +2045,7 @@ Item {
                     jsonio.setDefaultToActive();  //write active parameters to backup set to update restore
                     console.log("Dialog On Applied");
                 }
+
                 onRejected:   {
 
                     jsonio.setActiveToDefault();  // revert parameter set to backup set
@@ -2126,14 +2124,26 @@ Item {
                         color: "black"
                         textFormat : Text.StyledText
                         wrapMode: Text.Wrap
-                        text: "<font color=\"black\">Motor A</font> " // +  js1_cmd.value.toFixed(1);
+                        text: "<font color=\"black\">Joystick 1 Command Output: A</font> " +  js1_cmd.value.toFixed(1);
+                        font.family: "Gentium Basic, Bold"
+                        font.pointSize : 10
+                    }
+
+                    Text {
+                        id: textjs1_02
+                        anchors.top: textjs1_01.bottom
+                        width : parent.width
+                        color: "black"
+                        textFormat : Text.StyledText
+                        wrapMode: Text.Wrap
+                        text: "<font color=\"black\">Joystick 1 Raw Output: A</font> " +  js1_raw.value;
                         font.family: "Gentium Basic, Bold"
                         font.pointSize : 10
                     }
 
                     ListView {
                         id : param_list_view_js1
-                        anchors.top: textjs1_01.bottom
+                        anchors.top: textjs1_02.bottom
                         anchors.bottom: parent.bottom
                         anchors.left: parent.left
                         model: js1_param_obj
@@ -2142,11 +2152,11 @@ Item {
                     ObjectModel {
                         id: js1_param_obj
                         Parameter_Spin_Box {
-                            parameter_text : "Position Proportional Gain" //"JS1 Scale";
+                            parameter_text : "JS1 Scale";
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS1-Scale";
                             parameter_hal_pin_name : "JS1_Scale";
                             parameter_hal_pin_id : "js1_scale";
-                            width: 350
+                            width: 280
                             height: 25
                             spinbox.onValueModified:  {
                                 parameter_hal_pin_id.value = (spinbox.value / 100.0) ;
@@ -2166,11 +2176,11 @@ Item {
                         }
 
                         Parameter_Spin_Box {
-                            parameter_text :"Position Integral Gain" //  "JS1 feather";
+                            parameter_text : "JS1 feather";
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS1-Feather";
                             parameter_hal_pin_name : "JS1_Feather";
                             parameter_hal_pin_id: "js1_feather";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2191,11 +2201,11 @@ Item {
                         }
 
                         Parameter_Spin_Box {
-                            parameter_text : "Position Derivative Gain"// "JS1 max raw";
+                            parameter_text : "JS1 max raw";
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS1-Max";
                             parameter_hal_pin_name : "JS1_Max";
                             parameter_hal_pin_id: "js1_max";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2216,11 +2226,11 @@ Item {
                         }
 
                         Parameter_Spin_Box {
-                            parameter_text : "Position Vel Feed Fwd"// "JS1 min raw";
+                            parameter_text : "JS1 min raw";
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS1-Min";
                             parameter_hal_pin_name : "JS1_Min";
                             parameter_hal_pin_id: "js1_min";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2241,11 +2251,11 @@ Item {
                         }
 
                         Parameter_Spin_Box {
-                            parameter_text : "Position Accel Feed Fwd" // "JS1 mid raw";
+                            parameter_text : "JS1 mid raw";
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS1-Mid";
                             parameter_hal_pin_name : "JS1_Mid";
                             parameter_hal_pin_id: "js1_mid";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2266,11 +2276,11 @@ Item {
                         }
 
                         Parameter_Spin_Box {
-                            parameter_text : "Position Gain Scale"// "JS1 Max Accel";
+                            parameter_text : "JS1 Max Accel";
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS1-MaxAccel";
                             parameter_hal_pin_name : "JS1_Max_Accel";
                             parameter_hal_pin_id: "js1_max_accel";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2291,11 +2301,11 @@ Item {
                         }
 
                         Parameter_Spin_Box {
-                            parameter_text : "Position Intergral Drain" // "JS1 Scaled Max";
+                            parameter_text : "JS1 Scaled Max";
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS1-ScaledMax";
                             parameter_hal_pin_name : "JS1_Scaled_Max";
                             parameter_hal_pin_id: "js1_scaled_max";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2316,11 +2326,11 @@ Item {
                         }
 
                         Parameter_Spin_Box {
-                            parameter_text : "Velocity Proportional Gain" // "JS1 Scaled Min";
+                            parameter_text : "JS1 Scaled Min";
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS1-ScaledMin";
                             parameter_hal_pin_name : "JS1_Scaled_Min";
                             parameter_hal_pin_id: "js1_scaled_min";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2338,46 +2348,6 @@ Item {
                                     spinbox.value = parameter_initValue;
                                 }
                             }
-                        }
-                        Parameter_Spin_Box {
-                            parameter_text : "Velocity Integral Gain"
-                            width: 350
-                            height: 25
-                        }
-                        Parameter_Spin_Box {
-                            parameter_text : "Velocity Feed Fwd Gain"
-                            width: 350
-                            height: 25
-                        }
-                        Parameter_Spin_Box {
-                            parameter_text : "Velocity Gain Scale"
-                            width: 350
-                            height: 25
-                        }
-                        Parameter_Spin_Box {
-                            parameter_text : "Velocity Integral Drain"
-                            width: 350
-                            height: 25
-                        }
-                        Parameter_Spin_Box {
-                            parameter_text : "Current Tq Slope"
-                            width: 350
-                            height: 25
-                        }
-                        Parameter_Spin_Box {
-                            parameter_text : "Current Proportional Gain"
-                            width: 350
-                            height: 25
-                        }
-                        Parameter_Spin_Box {
-                            parameter_text : "Current Integral Gain"
-                            width: 350
-                            height: 25
-                        }
-                        Parameter_Spin_Box {
-                            parameter_text : "Current Derivative Gain"
-                            width: 350
-                            height: 25
                         }
 
                         Button{
@@ -2431,28 +2401,38 @@ Item {
                     height : parent.height*1.0
 
                     Item {
-
                         id : js2_rect_var
                         property var rect_width_scale : 1.0
                         property var rect_height_scale : 0.08
                     }
 
                     Text {
-
                         id: textjs2_01
                         anchors.top: rect_js2.top
                         width : parent.width
                         color: "black"
                         textFormat : Text.StyledText
                         wrapMode: Text.Wrap
-                        text: "<font color=\"black\">Motor B </font> " //+  js1_cmd.value.toFixed(1);
+                        text: "<font color=\"black\">Joystick 2 command Output: </font> " +  js1_cmd.value.toFixed(1);
+                        font.family: "Gentium Basic, Bold"
+                        font.pointSize : 10
+                    }
+
+                    Text {
+                        id: textjs2_02
+                        anchors.top: textjs2_01.bottom
+                        width : parent.width
+                        color: "black"
+                        textFormat : Text.StyledText
+                        wrapMode: Text.Wrap
+                        text: "<font color=\"black\">Joystick 2 Raw Output: </font> " +  js2_raw.value;
                         font.family: "Gentium Basic, Bold"
                         font.pointSize : 10
                     }
 
                     ListView {
                         id : param_list_view_js2
-                        anchors.top: textjs2_01.bottom
+                        anchors.top: textjs2_02.bottom
                         anchors.bottom: parent.bottom
                         anchors.left: parent.left
                         model: js2_param_obj
@@ -2466,7 +2446,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS2-Scale";
                             parameter_hal_pin_name : "JS2_Scale";
                             parameter_hal_pin_id : "js2_scale";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2492,7 +2472,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS2-Feather";
                             parameter_hal_pin_name : "JS2_Feather";
                             parameter_hal_pin_id: "js2_feather";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2517,7 +2497,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS2-Max";
                             parameter_hal_pin_name : "JS2_Max";
                             parameter_hal_pin_id: "js2_max";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2542,7 +2522,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS2-Min";
                             parameter_hal_pin_name : "JS2_Min";
                             parameter_hal_pin_id: "js2_min";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2566,7 +2546,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS2-Mid";
                             parameter_hal_pin_name : "JS2_Mid";
                             parameter_hal_pin_id: "js2_mid";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2591,7 +2571,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS2-MaxAccel";
                             parameter_hal_pin_name : "JS2_Max_Accel";
                             parameter_hal_pin_id: "js2_max_accel";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2616,7 +2596,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS2-ScaledMax";
                             parameter_hal_pin_name : "JS2_Scaled_Max";
                             parameter_hal_pin_id: "js2_scaled_max";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
@@ -2641,7 +2621,7 @@ Item {
                             parameter_json_pin_name : "bodnar-USB-generic0.0.JS2-ScaledMin";
                             parameter_hal_pin_name : "JS2_Scaled_Min";
                             parameter_hal_pin_id: "js2_scaled_min";
-                            width: 350
+                            width: 280
                             height: 25
 
                             spinbox.onValueModified:  {
